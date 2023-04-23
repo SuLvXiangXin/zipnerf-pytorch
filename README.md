@@ -11,8 +11,8 @@ Current results:  (because of a lack of resources, results will be updated as so
 
 |             | bicycle | garden | stump | room  | counter | kitchen | bonsai  |
 |:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:| :---: |
-|    PSNR     |    |   |  |  |  31.92  |    |  |
-|    SSIM     |    |   |  |  |  0.915  |    |  |
+|    PSNR     |    |   |  | 31.92 |    |    |  |
+|    SSIM     |    |   |  | 0.915 |    |    |  |
 
 [//]: # (| train ray/s |    |   |  |  |         |    |  |)
 
