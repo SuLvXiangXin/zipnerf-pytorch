@@ -328,7 +328,7 @@ class MLP(nn.Module):
     warp_fn = None
     num_glo_features: int = 0  # GLO vector length, disabled if 0.
     num_glo_embeddings: int = 1000  # Upper bound on max number of train images.
-    scale_featurization: bool = True
+    scale_featurization: bool = False
     grid_num_levels: int = 10
     grid_level_interval: int = 2
     grid_level_dim: int = 4
