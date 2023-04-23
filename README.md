@@ -1,6 +1,10 @@
 # ZipNeRF
 
-An unofficial pytorch implementation of "Zip-NeRF: Anti-Aliased Grid-Based Neural Radiance Fields" [https://arxiv.org/abs/2304.06706](https://arxiv.org/abs/2304.06706)
+An unofficial pytorch implementation of 
+"Zip-NeRF: Anti-Aliased Grid-Based Neural Radiance Fields" 
+[https://arxiv.org/abs/2304.06706](https://arxiv.org/abs/2304.06706).
+This work is based on [multinerf](https://github.com/google-research/multinerf), so features in refnerf,rawnerf,mipnerf360 are also available.
+
 
 ## Results
 Current results:  (because of a lack of resources, results will be updated as soon as possible)
@@ -165,4 +169,5 @@ which is basically a pytorch translation from [multinerf](https://github.com/goo
 
 - Thanks to [multinerf](https://github.com/google-research/multinerf) for amazing multinerf(MipNeRF360,RefNeRF,RawNeRF) implementation
 - Thanks to [accelerate](https://github.com/huggingface/accelerate) for distributed training
-- Thanks to [stable-dreamfusion](https://github.com/ashawkey/stable-dreamfusion) for usefull hashencoder
+- Thanks to [stable-dreamfusion](https://github.com/ashawkey/stable-dreamfusion) for super useful hashencoder
+- Thanks to [Yurui Chen](https://github.com/519401113) for discussing the details of the paper.
