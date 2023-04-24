@@ -9,7 +9,8 @@ This work is based on [multinerf](https://github.com/google-research/multinerf),
 ## Results
 Current results:  
 
-https://magic3d-1302879605.cos.ap-nanjing.myqcloud.com/360.mp4
+https://user-images.githubusercontent.com/83005605/234030861-ee649921-2bd2-4ebd-8203-1192acad3bc3.mp4
+
 
 |             | bicycle | garden | stump | room  | counter | kitchen | bonsai |
 |:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:|:------:|
