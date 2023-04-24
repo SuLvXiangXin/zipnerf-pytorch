@@ -14,10 +14,8 @@ Current results:  (because of a lack of resources, results will be updated as so
 |    PSNR     |  24.45  | 26.18  | 26.46 | 31.79 |    |    |  |
 |    SSIM     |  0.685  | 0.752  | 0.762 | 0.914 |    |    |  |
 
-[//]: # (| train ray/s |    |   |  |  |         |    |  |)
-
-[//]: # (| test ray/s  |    |   |  |  |         |    |  |)
-Training speed is about 1.5x slower than paper, while test speed is much slower than in paper(no less than 1min compared to 3.9s in paper)  
+Training speed is about 1.5x slower than paper, and evaluate and render is very slow while rendering in full resolution.
+(In bicycle scene, it takes 2min to render a 4946x3286 image)
 This project is work-in-progress, and any advice will be appreciated.
 ## Install
 
@@ -116,12 +114,6 @@ adding e.g.  `--gin_bindings="Config.batch_size = 8192" `,
 or decrease the test chunk size by adding e.g.  `--gin_bindings="Config.render_chunk_size = 8192" `,
 or use more GPU by configure `accelerate config` .
 
-
-## TODO
-- [ ] Rewrite dataset to torchdata dataloader2
-
-[//]: # (- then training without downsample is allowed.)
-[//]: # (this is because while my machine can't afford to load several times of the whole scene images into cpu without downsampling. )
 
 ## Preparing custom data
 More details can be found at https://github.com/google-research/multinerf
