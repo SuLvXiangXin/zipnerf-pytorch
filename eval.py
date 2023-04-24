@@ -30,12 +30,21 @@ def main(unused_argv):
     accelerator = accelerate.Accelerator(mixed_precision='fp16')
     config.world_size = accelerator.num_processes
     config.local_rank = accelerator.local_process_index
+    print(config.local_rank)
     utils.seed_everything(config.seed + accelerator.local_process_index)
     model = models.Model(config=config)
 
     model.to(accelerator.device)
 
     dataset = datasets.load_dataset('test', config.data_dir, config)
+    dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
+                                             num_workers=8,
+                                             shuffle=False,
+                                             batch_size=1,
+                                             collate_fn=dataset.collate_fn,
+                                             persistent_workers=True,
+                                             pin_memory=True,
+                                             )
     tb_process_fn = lambda x: x.transpose(2, 0, 1) if len(x.shape) == 3 else x[None]
     if config.rawnerf_mode:
         postprocess_fn = dataset.metadata['postprocess_fn']
@@ -75,9 +84,8 @@ def main(unused_argv):
         metrics_cc = []
         showcases = []
         render_times = []
-        for idx in range(dataset.size):
-            batch = dataset[idx]
-            batch = tree_map(lambda x: x.to(accelerator.device) if x is not None else None, batch)
+        for idx, batch in enumerate(dataloader):
+            batch = accelerate.utils.send_to_device(batch, accelerator.device)
             eval_start_time = time.time()
             if idx >= num_eval:
                 accelerator.print(f'Skipping image {idx + 1}/{dataset.size}')

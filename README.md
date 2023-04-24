@@ -7,15 +7,17 @@ This work is based on [multinerf](https://github.com/google-research/multinerf),
 
 
 ## Results
-Current results:  (because of a lack of resources, results will be updated as soon as possible)
+Current results:  
 
-|             | bicycle | garden | stump | room  | counter | kitchen | bonsai  |
-|:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:| :---: |
-|    PSNR     |  24.45  | 26.18  | 26.46 | 31.79 |    |    |  |
-|    SSIM     |  0.685  | 0.752  | 0.762 | 0.914 |    |    |  |
+https://github.com/SuLvXiangXin/zipnerf-pytorch/tree/main/assets/360.mp4
 
-Training speed is about 1.5x slower than paper, and evaluate and render is very slow while rendering in full resolution.
-(In bicycle scene, it takes 2min to render a 4946x3286 image)
+|             | bicycle | garden | stump | room  | counter | kitchen | bonsai |
+|:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:|:------:|
+|    PSNR     |  24.45  | 26.18  | 26.46 | 31.79 |  28.56  |  31.35  | 33.47  |
+|    SSIM     |  0.685  | 0.752  | 0.762 | 0.914 |  0.896  |  0.909  | 0.937  |
+
+Training speed is about 1.5x slower than paper.
+
 This project is work-in-progress, and any advice will be appreciated.
 ## Install
 

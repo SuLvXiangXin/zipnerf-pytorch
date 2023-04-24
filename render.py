@@ -71,6 +71,7 @@ def create_videos(config, base_dir, out_dir, out_name, num_frames):
             writer.append_data(frame)
         writer.close()
 
+
 def main(unused_argv):
     config = configs.load_config()
     config.exp_path = os.path.join('exp', config.exp_name)
@@ -78,6 +79,7 @@ def main(unused_argv):
 
     accelerator = accelerate.Accelerator()
     config.world_size = accelerator.num_processes
+    config.local_rank = accelerator.local_process_index
     utils.seed_everything(config.seed + accelerator.local_process_index)
     model = models.Model(config=config)
 
@@ -86,8 +88,8 @@ def main(unused_argv):
     model.to(accelerator.device)
 
     dataset = datasets.load_dataset('test', config.data_dir, config)
-    dataloader = torch.utils.data.DataLoader(dataset,
-                                             num_workers=4,
+    dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
+                                             num_workers=8,
                                              shuffle=False,
                                              batch_size=1,
                                              collate_fn=dataset.collate_fn,
@@ -117,7 +119,7 @@ def main(unused_argv):
         idx_str = idx_to_str(idx)
         curr_file = path_fn(f'color_{idx_str}.png')
         if utils.file_exists(curr_file):
-            accelerator.print(f'Image {idx+1}/{dataset.size} already exists, skipping')
+            accelerator.print(f'Image {idx + 1}/{dataset.size} already exists, skipping')
             continue
         batch = next(dataiter)
         batch = tree_map(lambda x: x.to(accelerator.device) if x is not None else None, batch)
@@ -143,11 +145,11 @@ def main(unused_argv):
             if 'normals' in rendering:
                 utils.save_img_u8(rendering['normals'] / 2. + 0.5,
                                   path_fn(f'normals_{idx_str}.png'))
-            utils.save_img_u8(rendering['distance_mean'],
-                              path_fn(f'distance_mean_{idx_str}.tiff'))
-            utils.save_img_u8(rendering['distance_median'],
-                              path_fn(f'distance_median_{idx_str}.tiff'))
-            utils.save_img_u8(rendering['acc'], path_fn(f'acc_{idx_str}.tiff'))
+            utils.save_img_f32(rendering['distance_mean'],
+                               path_fn(f'distance_mean_{idx_str}.tiff'))
+            utils.save_img_f32(rendering['distance_median'],
+                               path_fn(f'distance_median_{idx_str}.tiff'))
+            utils.save_img_f32(rendering['acc'], path_fn(f'acc_{idx_str}.tiff'))
     num_files = len(glob.glob(path_fn('acc_*.tiff')))
     if accelerator.is_local_main_process and num_files == dataset.size:
         accelerator.print(f'All files found, creating videos).')

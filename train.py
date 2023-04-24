@@ -41,7 +41,7 @@ def main(unused_argv):
     config.local_rank = accelerator.local_process_index
     if config.batch_size % accelerator.num_processes != 0:
         config.batch_size -= config.batch_size % accelerator.num_processes != 0
-        print('turn batch size to', config.batch_size)
+        accelerator.print('turn batch size to', config.batch_size)
     # Shift random seed by local_process_index to shuffle data loaded by different hosts.
     utils.seed_everything(config.seed + accelerator.local_process_index)
 
@@ -63,13 +63,13 @@ def main(unused_argv):
                                              pin_memory=True,
                                              )
     test_dataloader = torch.utils.data.DataLoader(np.arange(len(test_dataset)),
-                                             num_workers=8,
-                                             shuffle=False,
-                                             batch_size=1,
-                                             collate_fn=test_dataset.collate_fn,
-                                             persistent_workers=True,
-                                             pin_memory=True,
-                                             )
+                                                  num_workers=8,
+                                                  shuffle=False,
+                                                  batch_size=1,
+                                                  collate_fn=test_dataset.collate_fn,
+                                                  persistent_workers=True,
+                                                  pin_memory=True,
+                                                  )
     if config.rawnerf_mode:
         postprocess_fn = test_dataset.metadata['postprocess_fn']
     else:

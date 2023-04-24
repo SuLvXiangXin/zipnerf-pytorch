@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCENE=("bicycle" "garden" "stump" "room" "counter" "kitchen" "bonsai")
+SCENE=("bonsai")
 DATA_ROOT=/SSD_DISK/datasets/360_v2
 
 len=${#SCENE[@]}
@@ -10,13 +11,13 @@ do
   DATA_DIR="$DATA_ROOT"/"${SCENE[i]}"
 
   rm exp/"$EXPERIMENT"/*
-  accelerate launch --main_process_port 1250 train.py \
+  accelerate launch train.py \
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
       --gin_bindings="Config.factor = 0"
 
-  accelerate launch --main_process_port 7831 eval.py \
+  accelerate launch eval.py \
   --gin_configs=configs/360.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
