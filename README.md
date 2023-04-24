@@ -9,7 +9,7 @@ This work is based on [multinerf](https://github.com/google-research/multinerf),
 ## Results
 Current results:  
 
-https://github.com/SuLvXiangXin/zipnerf-pytorch/tree/main/assets/360.mp4
+https://magic3d-1302879605.cos.ap-nanjing.myqcloud.com/360.mp4
 
 |             | bicycle | garden | stump | room  | counter | kitchen | bonsai |
 |:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:|:------:|
