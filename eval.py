@@ -29,6 +29,7 @@ def main(unused_argv):
 
     accelerator = accelerate.Accelerator(mixed_precision='fp16')
     config.world_size = accelerator.num_processes
+    config.local_rank = accelerator.local_process_index
     utils.seed_everything(config.seed + accelerator.local_process_index)
     model = models.Model(config=config)
 

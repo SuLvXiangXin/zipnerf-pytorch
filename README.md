@@ -11,8 +11,8 @@ Current results:  (because of a lack of resources, results will be updated as so
 
 |             | bicycle | garden | stump | room  | counter | kitchen | bonsai  |
 |:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:| :---: |
-|    PSNR     |    |   |  | 31.92 |    |    |  |
-|    SSIM     |    |   |  | 0.915 |    |    |  |
+|    PSNR     |  24.45  | 26.18  | 26.46 | 31.79 |    |    |  |
+|    SSIM     |  0.685  | 0.752  | 0.762 | 0.914 |    |    |  |
 
 [//]: # (| train ray/s |    |   |  |  |         |    |  |)
 
@@ -33,8 +33,8 @@ conda activate zipnerf
 # Install requirements.
 pip install -r requirements.txt
 
-# Install gridencoder from https://github.com/ashawkey/torch-ngp
-pip install ./gridencoder
+# Install other extensions
+pip install torch_scatter ./gridencoder
 ```
 
 ## Dataset

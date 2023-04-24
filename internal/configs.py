@@ -21,7 +21,6 @@ class Config:
     batch_size: int = 2 ** 16  # The number of rays/pixels in each batch.
     patch_size: int = 1  # Resolution of patches sampled for training batches.
     factor: int = 0  # The downsample factor of images, 0 for no downsampling.
-    load_alphabetical: bool = True  # Load images in COLMAP vs alphabetical
     # ordering (affects heldout test set).
     forward_facing: bool = False  # Set to True for forward-facing LLFF captures.
     render_path: bool = False  # If True, render a path. Used only by LLFF.

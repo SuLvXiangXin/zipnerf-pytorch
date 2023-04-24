@@ -15,6 +15,6 @@ do
     --gin_bindings="Config.render_path = True" \
     --gin_bindings="Config.render_path_frames = 120" \
     --gin_bindings="Config.render_video_fps = 60" \
-    --gin_bindings="Config.factor = 8" \
+    --gin_bindings="Config.factor = 4" \
     --logtostderr
 done

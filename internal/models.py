@@ -303,9 +303,9 @@ class Model(nn.Module):
 class MLP(nn.Module):
     """A PosEnc MLP."""
     bottleneck_width: int = 256  # The width of the bottleneck vector.
-    net_depth_viewdirs: int = 3  # The depth of the second part of ML.
+    net_depth_viewdirs: int = 2  # The depth of the second part of ML.
     net_width_viewdirs: int = 256  # The width of the second part of MLP.
-    skip_layer_dir: int = 1  # Add a skip connection to 2nd MLP.
+    skip_layer_dir: int = 0  # Add a skip connection to 2nd MLP every N layers.
     num_rgb_channels: int = 3  # The number of RGB channels.
     deg_view: int = 4  # Degree of encoding for viewdirs or refdirs.
     use_reflections: bool = False  # If True, use refdirs instead of viewdirs.

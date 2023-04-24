@@ -27,5 +27,5 @@ do
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
-    --gin_bindings="Config.factor = 0"
+    --gin_bindings="Config.factor = 4"
 done

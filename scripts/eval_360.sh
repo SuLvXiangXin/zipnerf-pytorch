@@ -15,7 +15,7 @@
 
 SCENE=bicycle
 EXPERIMENT=360_v2/"$SCENE"
-EXPERIMENT=360_v2_factor0/bicycle
+EXPERIMENT=360_v2_0424_04/bicycle
 DATA_ROOT=/SSD_DISK/datasets/360_v2
 DATA_DIR="$DATA_ROOT"/"$SCENE"
 
@@ -23,5 +23,5 @@ accelerate launch --main_process_port 7831 eval.py \
   --gin_configs=configs/360.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
-  --gin_bindings="Config.factor = 0" \
+  --gin_bindings="Config.factor = 4" \
   --logtostderr

@@ -259,11 +259,12 @@ class Dataset(torch.utils.data.Dataset):
         self._use_tiffs = config.use_tiffs
         self._load_disps = config.compute_disp_metrics
         self._load_normals = config.compute_normal_metrics
-        self._test_camera_idx = 0
         self._num_border_pixels_to_mask = config.num_border_pixels_to_mask
         self._apply_bayer_mask = config.apply_bayer_mask
         self._render_spherical = False
 
+        self.local_rank = config.local_rank
+        self.world_size = config.world_size
         self.split = utils.DataSplit(split)
         self.data_dir = data_dir
         self.near = config.near
@@ -457,9 +458,6 @@ class Dataset(torch.utils.data.Dataset):
 
     def _next_test(self, item):
         """Sample next test batch (one full image)."""
-        # Use the next camera index.
-        # cam_idx = self._test_camera_idx
-        # self._test_camera_idx = (self._test_camera_idx + 1) % self._n_examples
         return self.generate_ray_batch(item)
 
     def collate_fn(self, item):
@@ -554,10 +552,70 @@ class LLFF(Dataset):
 
         # Previous NeRF results were generated with images sorted by filename,
         # use this flag to ensure metrics are reported on the same test set.
-        if config.load_alphabetical:
-            inds = np.argsort(image_names)
-            image_names = [image_names[i] for i in inds]
-            poses = poses[inds]
+        inds = np.argsort(image_names)
+        image_names = [image_names[i] for i in inds]
+        poses = poses[inds]
+
+        # Load bounds if possible (only used in forward facing scenes).
+        posefile = os.path.join(self.data_dir, 'poses_bounds.npy')
+        if utils.file_exists(posefile):
+            with utils.open_file(posefile, 'rb') as fp:
+                poses_arr = np.load(fp)
+            bounds = poses_arr[:, -2:]
+        else:
+            bounds = np.array([0.01, 1.])
+        self.colmap_to_world_transform = np.eye(4)
+
+        # Separate out 360 versus forward facing scenes.
+        if config.forward_facing:
+            # Set the projective matrix defining the NDC transformation.
+            self.pixtocam_ndc = self.pixtocams.reshape(-1, 3, 3)[0]
+            # Rescale according to a default bd factor.
+            scale = 1. / (bounds.min() * .75)
+            poses[:, :3, 3] *= scale
+            self.colmap_to_world_transform = np.diag([scale] * 3 + [1])
+            bounds *= scale
+            # Recenter poses.
+            poses, transform = camera_utils.recenter_poses(poses)
+            self.colmap_to_world_transform = (
+                    transform @ self.colmap_to_world_transform)
+            # Forward-facing spiral render path.
+            self.render_poses = camera_utils.generate_spiral_path(
+                poses, bounds, n_frames=config.render_path_frames)
+        else:
+            # Rotate/scale poses to align ground with xy plane and fit to unit cube.
+            poses, transform = camera_utils.transform_poses_pca(poses)
+            self.colmap_to_world_transform = transform
+            if config.render_spline_keyframes is not None:
+                rets = camera_utils.create_render_spline_path(config, image_names,
+                                                              poses, self.exposures)
+                self.spline_indices, self.render_poses, self.render_exposures = rets
+            else:
+                # Automatically generated inward-facing elliptical render path.
+                self.render_poses = camera_utils.generate_ellipse_path(
+                    poses,
+                    n_frames=config.render_path_frames,
+                    z_variation=config.z_variation,
+                    z_phase=config.z_phase)
+
+        # Select the split.
+        all_indices = np.arange(len(image_names))
+        if config.llff_use_all_images_for_training:
+            train_indices = all_indices
+        else:
+            train_indices = all_indices % config.llffhold != 0
+        split_indices = {
+            utils.DataSplit.TEST: all_indices[all_indices % config.llffhold == 0],
+            utils.DataSplit.TRAIN: all_indices[train_indices],
+        }
+        indices = split_indices[self.split]
+        image_names = [image_names[i] for i in indices]
+        poses = poses[indices]
+        if self.split == utils.DataSplit.TRAIN:
+            # load different training data on different rank
+            local_indices = [i for i in range(len(image_names)) if (i + self.local_rank) % self.world_size == 0]
+            image_names = [image_names[i] for i in local_indices]
+            poses = poses[local_indices]
 
         # Scale the inverse intrinsics matrix by the image downsampling factor.
         pixtocam = pixtocam @ np.diag([factor, factor, 1.])
@@ -604,48 +662,6 @@ class LLFF(Dataset):
                 isos = gather_exif_value('ISOSpeedRatings')
                 self.exposures = shutters * isos / 1000.
 
-        # Load bounds if possible (only used in forward facing scenes).
-        posefile = os.path.join(self.data_dir, 'poses_bounds.npy')
-        if utils.file_exists(posefile):
-            with utils.open_file(posefile, 'rb') as fp:
-                poses_arr = np.load(fp)
-            bounds = poses_arr[:, -2:]
-        else:
-            bounds = np.array([0.01, 1.])
-        self.colmap_to_world_transform = np.eye(4)
-
-        # Separate out 360 versus forward facing scenes.
-        if config.forward_facing:
-            # Set the projective matrix defining the NDC transformation.
-            self.pixtocam_ndc = self.pixtocams.reshape(-1, 3, 3)[0]
-            # Rescale according to a default bd factor.
-            scale = 1. / (bounds.min() * .75)
-            poses[:, :3, 3] *= scale
-            self.colmap_to_world_transform = np.diag([scale] * 3 + [1])
-            bounds *= scale
-            # Recenter poses.
-            poses, transform = camera_utils.recenter_poses(poses)
-            self.colmap_to_world_transform = (
-                    transform @ self.colmap_to_world_transform)
-            # Forward-facing spiral render path.
-            self.render_poses = camera_utils.generate_spiral_path(
-                poses, bounds, n_frames=config.render_path_frames)
-        else:
-            # Rotate/scale poses to align ground with xy plane and fit to unit cube.
-            poses, transform = camera_utils.transform_poses_pca(poses)
-            self.colmap_to_world_transform = transform
-            if config.render_spline_keyframes is not None:
-                rets = camera_utils.create_render_spline_path(config, image_names,
-                                                              poses, self.exposures)
-                self.spline_indices, self.render_poses, self.render_exposures = rets
-            else:
-                # Automatically generated inward-facing elliptical render path.
-                self.render_poses = camera_utils.generate_ellipse_path(
-                    poses,
-                    n_frames=config.render_path_frames,
-                    z_variation=config.z_variation,
-                    z_phase=config.z_phase)
-
         if raw_testscene:
             # For raw testscene, the first image sent to COLMAP has the same pose as
             # the ground truth test image. The remaining images form the training set.
@@ -657,20 +673,6 @@ class LLFF(Dataset):
 
         self.poses = poses
 
-        # Select the split.
-        all_indices = np.arange(images.shape[0])
-        if config.llff_use_all_images_for_training or raw_testscene:
-            train_indices = all_indices
-        else:
-            train_indices = all_indices % config.llffhold != 0
-        split_indices = {
-            utils.DataSplit.TEST: all_indices[all_indices % config.llffhold == 0],
-            utils.DataSplit.TRAIN: train_indices,
-        }
-        indices = split_indices[self.split]
-        # All per-image quantities must be re-indexed using the split indices.
-        images = images[indices]
-        poses = poses[indices]
         if self.exposures is not None:
             self.exposures = self.exposures[indices]
         if config.rawnerf_mode:
@@ -874,3 +876,19 @@ class DTU(Dataset):
         self.height, self.width = images.shape[1:3]
         self.camtoworlds = camtoworlds[indices]
         self.pixtocams = pixtocams[indices]
+
+
+if __name__ == '__main__':
+    from internal import configs
+    import accelerate
+    config = configs.Config()
+    accelerator = accelerate.Accelerator()
+    config.world_size = accelerator.num_processes
+    config.local_rank = accelerator.local_process_index
+    config.factor = 8
+    dataset = LLFF('train', '/SSD_DISK/datasets/360_v2/bicycle', config)
+    print(len(dataset))
+    for _ in tqdm(dataset):
+        pass
+    print('done')
+    # print(accelerator.local_process_index)

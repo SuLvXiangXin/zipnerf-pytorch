@@ -8,6 +8,7 @@ from absl import app
 import gin
 from internal import configs
 from internal import datasets
+# from internal import datatest as datasets
 from internal import image
 from internal import models
 from internal import train_utils
@@ -37,14 +38,15 @@ def main(unused_argv):
     # accelerator for DDP
     accelerator = accelerate.Accelerator()
     config.world_size = accelerator.num_processes
+    config.local_rank = accelerator.local_process_index
     if config.batch_size % accelerator.num_processes != 0:
-        raise ValueError('Batch size must be divisible by the number of devices.')
+        config.batch_size -= config.batch_size % accelerator.num_processes != 0
+        print('turn batch size to', config.batch_size)
     # Shift random seed by local_process_index to shuffle data loaded by different hosts.
     utils.seed_everything(config.seed + accelerator.local_process_index)
 
     # setup model and optimizer
     model = models.Model(config=config)
-    model = accelerator.prepare(model)
     optimizer, lr_fn = train_utils.create_optimizer(config, model)
     init_step = checkpoints.restore_checkpoint(config.exp_path, model, optimizer) + 1
 
@@ -52,11 +54,19 @@ def main(unused_argv):
     dataset = datasets.load_dataset('train', config.data_dir, config)
     config.factor = 8  # for efficiency downsample 8x for test image while training
     test_dataset = datasets.load_dataset('test', config.data_dir, config)
-    dataloader = torch.utils.data.DataLoader(dataset,
+    dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
                                              num_workers=8,
                                              shuffle=True,
                                              batch_size=1,
                                              collate_fn=dataset.collate_fn,
+                                             persistent_workers=True,
+                                             pin_memory=True,
+                                             )
+    test_dataloader = torch.utils.data.DataLoader(np.arange(len(test_dataset)),
+                                             num_workers=8,
+                                             shuffle=False,
+                                             batch_size=1,
+                                             collate_fn=test_dataset.collate_fn,
                                              persistent_workers=True,
                                              pin_memory=True,
                                              )
@@ -65,12 +75,13 @@ def main(unused_argv):
     else:
         postprocess_fn = lambda z, _=None: z
 
-    # use accelerate to prepare. test_dataloader no need for distributed sampling
-    optimizer, dataloader = accelerator.prepare(optimizer, dataloader)
-    module = model.module if config.world_size > 1 else model
+    # use accelerate to prepare.
+    # no need to prepare dataloader because data in each process are loaded differently
+    model, optimizer = accelerator.prepare(model, optimizer)
+    module = accelerator.unwrap_model(model)
     dataiter = iter(dataloader)
-    # test_dataiter = iter(test_dataloader)
-    test_idx = 0
+    test_dataiter = iter(test_dataloader)
+
     num_params = train_utils.tree_len(list(model.parameters()))
     accelerator.print(f'Number of parameters being optimized: {num_params}')
 
@@ -112,6 +123,7 @@ def main(unused_argv):
         except StopIteration:
             dataiter = iter(dataloader)
             batch = next(dataiter)
+        batch = accelerate.utils.send_to_device(batch, accelerator.device)
         if reset_stats and accelerator.is_local_main_process:
             stats_buffer = []
             train_start_time = time.time()
@@ -270,11 +282,11 @@ def main(unused_argv):
                 # Reset everything we are tracking between summarizations.
                 reset_stats = True
 
-            if step == 1 or step % config.checkpoint_every == 0:
+            if step > 0 and step % config.checkpoint_every == 0:
                 checkpoints.save_checkpoint(
                     config.exp_path,
                     {
-                        'state_dict': module.state_dict(),
+                        'state_dict': accelerator.unwrap_model(model).state_dict(),
                         'optimizer': optimizer.state_dict(),
                     },
                     int(step), keep=1)
@@ -285,13 +297,12 @@ def main(unused_argv):
             # here on purpose so that the visualization matches what happened in
             # training.
             eval_start_time = time.time()
-            # try:
-            #     test_batch = next(test_dataiter)
-            # except StopIteration:
-            #     test_dataiter = iter(test_dataloader)
-            #     test_batch = next(test_dataiter)
-            test_batch = test_dataset[test_idx]
-            test_batch = tree_map(lambda x: x.to(accelerator.device) if x is not None else None, test_batch)
+            try:
+                test_batch = next(test_dataiter)
+            except StopIteration:
+                test_dataiter = iter(test_dataloader)
+                test_batch = next(test_dataiter)
+            test_batch = accelerate.utils.send_to_device(test_batch, accelerator.device)
 
             # render a single image with all distributed processes
             rendering = models.render_image(
@@ -359,7 +370,7 @@ def main(unused_argv):
         checkpoints.save_checkpoint(
             config.exp_path,
             {
-                "state_dict": module.state_dict(),
+                "state_dict": accelerator.unwrap_model(model).state_dict(),
                 "optimizer": optimizer.state_dict(),
             },
             int(config.max_steps), keep=1)
