@@ -17,7 +17,7 @@ https://user-images.githubusercontent.com/83005605/234030861-ee649921-2bd2-4ebd-
 |    PSNR     |  24.45  | 26.18  | 26.46 | 31.79 |  28.56  |  31.35  | 33.47  |
 |    SSIM     |  0.685  | 0.752  | 0.762 | 0.914 |  0.896  |  0.909  | 0.937  |
 
-Training speed is about 1.5x slower than paper.
+The video is rendered at a downsample factor of 8 while the nerf model is trained in full resolution. Training speed is about 1.5x slower than paper(1.5 hours on 8 A6000).
 
 This project is work-in-progress, and any advice will be appreciated.
 ## Install
