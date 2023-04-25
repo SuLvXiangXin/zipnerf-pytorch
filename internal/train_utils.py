@@ -120,12 +120,12 @@ def interlevel_loss(ray_history, config):
     last_ray_results = ray_history[-1]
     c = last_ray_results['sdist'].detach()
     w = last_ray_results['weights'].detach()
-    loss_anti_interlevel = 0.
+    loss_interlevel = 0.
     for ray_results in ray_history[:-1]:
         cp = ray_results['sdist']
         wp = ray_results['weights']
-        loss_anti_interlevel += stepfun.lossfun_outer(c, w, cp, wp).mean()
-    return config.anti_interlevel_loss_mult * loss_anti_interlevel
+        loss_interlevel += stepfun.lossfun_outer(c, w, cp, wp).mean()
+    return config.interlevel_loss_mult * loss_interlevel
 
 
 def anti_interlevel_loss(ray_history, config):

@@ -35,7 +35,12 @@ conda activate zipnerf
 pip install -r requirements.txt
 
 # Install other extensions
-pip install torch_scatter ./gridencoder
+pip install ./gridencoder
+
+# Install a specific cuda version of torch_scatter 
+# see more detail at https://github.com/rusty1s/pytorch_scatter
+CUDA=cu117
+pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.0+${CUDA}.html
 ```
 
 ## Dataset

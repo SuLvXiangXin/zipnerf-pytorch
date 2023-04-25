@@ -8,7 +8,6 @@ from absl import app
 import gin
 from internal import configs
 from internal import datasets
-# from internal import datatest as datasets
 from internal import image
 from internal import models
 from internal import train_utils
@@ -171,7 +170,7 @@ def main(unused_argv):
         # orientation loss in RefNeRF
         if (config.orientation_coarse_loss_mult > 0 or
                 config.orientation_loss_mult > 0):
-            losses['orientation'] = train_utils.orientation_loss(batch, model, ray_history,
+            losses['orientation'] = train_utils.orientation_loss(batch, module, ray_history,
                                                                  config)
         # hash grid l2 weight decay
         if config.hash_decay_mults > 0:
@@ -253,12 +252,7 @@ def main(unused_argv):
                                           approx_total_time // TIME_PRECISION)
 
                 if dataset.metadata is not None and module.learned_exposure_scaling:
-                    for n, p in model.named_parameters():
-                        if n.startswith('exposure_scaling_offsets'):
-                            param = p
-                            break
-
-                    scalings = param[0]
+                    scalings = module.exposure_scaling_offsets.weight
                     num_shutter_speeds = dataset.metadata['unique_shutters'].shape[0]
                     for i_s in range(num_shutter_speeds):
                         for j_s, value in enumerate(scalings[i_s]):

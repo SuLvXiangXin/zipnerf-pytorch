@@ -10,6 +10,14 @@ from internal import utils
 
 gin.add_config_file_search_path('configs/')
 
+configurables = {
+    'torch': [torch.reciprocal, torch.log, torch.log1p, torch.exp, torch.sqrt, torch.square],
+}
+
+for module, configurables in configurables.items():
+    for configurable in configurables:
+        gin.config.external_configurable(configurable, module=module)
+
 
 @gin.configurable()
 @dataclasses.dataclass

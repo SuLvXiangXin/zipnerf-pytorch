@@ -481,7 +481,16 @@ class Blender(Dataset):
         disp_images = []
         normal_images = []
         cams = []
-        for _, frame in enumerate(meta['frames']):
+
+        if self.split == utils.DataSplit.TRAIN:
+            # load different training data on different rank
+            local_indices = [i for i in range(len(meta['frames'])) if (i + self.local_rank) % self.world_size == 0]
+        else:
+            local_indices = list(range(len(meta['frames'])))
+
+        for idx, frame in enumerate(meta['frames']):
+            if not idx in local_indices:
+                continue
             fprefix = os.path.join(self.data_dir, frame['file_path'])
 
             def get_img(f, fprefix=fprefix):
@@ -566,6 +575,13 @@ class LLFF(Dataset):
             bounds = np.array([0.01, 1.])
         self.colmap_to_world_transform = np.eye(4)
 
+        # Scale the inverse intrinsics matrix by the image downsampling factor.
+        pixtocam = pixtocam @ np.diag([factor, factor, 1.])
+        self.pixtocams = pixtocam.astype(np.float32)
+        self.focal = 1. / self.pixtocams[0, 0]
+        self.distortion_params = distortion_params
+        self.camtype = camtype
+
         # Separate out 360 versus forward facing scenes.
         if config.forward_facing:
             # Set the projective matrix defining the NDC transformation.
@@ -616,13 +632,7 @@ class LLFF(Dataset):
             local_indices = [i for i in range(len(image_names)) if (i + self.local_rank) % self.world_size == 0]
             image_names = [image_names[i] for i in local_indices]
             poses = poses[local_indices]
-
-        # Scale the inverse intrinsics matrix by the image downsampling factor.
-        pixtocam = pixtocam @ np.diag([factor, factor, 1.])
-        self.pixtocams = pixtocam.astype(np.float32)
-        self.focal = 1. / self.pixtocams[0, 0]
-        self.distortion_params = distortion_params
-        self.camtype = camtype
+            indices = local_indices
 
         raw_testscene = False
         if config.rawnerf_mode:
@@ -672,13 +682,6 @@ class LLFF(Dataset):
             poses = raw_testscene_poses[self.split]
 
         self.poses = poses
-
-        if self.exposures is not None:
-            self.exposures = self.exposures[indices]
-        if config.rawnerf_mode:
-            for key in ['exposure_idx', 'exposure_values']:
-                self.metadata[key] = self.metadata[key][indices]
-
         self.images = images
         self.camtoworlds = self.render_poses if config.render_path else poses
         self.height, self.width = images.shape[1:3]
@@ -695,7 +698,7 @@ class TanksAndTemplesNerfPP(Dataset):
             split_str = self.split.value
 
         basedir = os.path.join(self.data_dir, split_str)
-
+        # TODO: need to rewrite this to push different data on different rank
         def load_files(dirname, load_fn, shape=None):
             files = [
                 os.path.join(basedir, dirname, f)
@@ -749,6 +752,7 @@ class TanksAndTemplesFVS(Dataset):
         basedir = os.path.join(basedir, sizes[config.factor])
         open_fn = lambda f: utils.open_file(os.path.join(basedir, f), 'rb')
 
+        # TODO: need to rewrite this to push different data on different rank
         files = [f for f in sorted(utils.listdir(basedir)) if f.startswith('im_')]
         if render_only:
             files = files[:1]
@@ -812,8 +816,17 @@ class DTU(Dataset):
         # Find out whether the particular scan has 49 or 65 images.
         n_images = len(utils.listdir(self.data_dir)) // 8
 
+        if self.split == utils.DataSplit.TRAIN:
+            # load different training data on different rank
+            local_indices = [i for i in range(n_images) if (i + self.local_rank) % self.world_size == 0]
+        else:
+            local_indices = list(range(n_images))
+
         # Loop over all images.
         for i in range(1, n_images + 1):
+            if not (i-1 in local_indices):
+                continue
+
             # Set light condition string accordingly.
             if config.dtu_light_cond < 7:
                 light_str = f'{config.dtu_light_cond}_r' + ('5000'
