@@ -1,4 +1,3 @@
-internal/pycolmap
 __pycache__/
 interal/__pycache__/
 tests/__pycache__/
