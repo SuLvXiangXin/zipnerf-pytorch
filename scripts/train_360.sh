@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SCENE=bicycle
-EXPERIMENT=test/"$SCENE"
+EXPERIMENT=360_v2/"$SCENE"
 DATA_ROOT=/SSD_DISK/datasets/360_v2
 DATA_DIR="$DATA_ROOT"/"$SCENE"
 
