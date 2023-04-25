@@ -150,11 +150,11 @@ bash scripts/local_colmap_and_resize.sh ${DATA_DIR}
   year =         {2022}
 }
 
-@misc{stable-dreamfusion,
+@misc{torch-ngp,
     Author = {Jiaxiang Tang},
     Year = {2022},
-    Note = {https://github.com/ashawkey/stable-dreamfusion},
-    Title = {Stable-dreamfusion: Text-to-3D with Stable-diffusion}
+    Note = {https://github.com/ashawkey/torch-ngp},
+    Title = {Torch-ngp: a PyTorch implementation of instant-ngp}
 }
 ```
 
@@ -164,5 +164,5 @@ which is basically a pytorch translation from [multinerf](https://github.com/goo
 
 - Thanks to [multinerf](https://github.com/google-research/multinerf) for amazing multinerf(MipNeRF360,RefNeRF,RawNeRF) implementation
 - Thanks to [accelerate](https://github.com/huggingface/accelerate) for distributed training
-- Thanks to [stable-dreamfusion](https://github.com/ashawkey/stable-dreamfusion) for super useful hashencoder
+- Thanks to [torch-ngp](https://github.com/ashawkey/torch-ngp) for super useful hashencoder
 - Thanks to [Yurui Chen](https://github.com/519401113) for discussing the details of the paper.
