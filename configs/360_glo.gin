@@ -3,8 +3,8 @@ Config.near = 0.2
 Config.far = 1e6
 Config.factor = 4
 
-Model.raydist_fn = @jnp.reciprocal
-Model.num_glo_features = 4
+Model.raydist_fn = 'power_transformation'
+Model.num_glo_features = 128
 Model.opaque_background = True
 
 PropMLP.warp_fn = @coord.contract

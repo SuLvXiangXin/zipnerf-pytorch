@@ -6,7 +6,6 @@ Config.factor = 4
 
 Model.raydist_fn = 'power_transformation'
 Model.opaque_background = True
-Model.disable_integration = False
 
 PropMLP.warp_fn = @coord.contract
 PropMLP.disable_density_normals = True

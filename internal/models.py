@@ -110,7 +110,7 @@ class Model(nn.Module):
             if not zero_glo:
                 # Construct/grab GLO vectors for the cameras of each input ray.
                 cam_idx = batch['cam_idx'][..., 0]
-                glo_vec = self.glo_vecs(cam_idx)
+                glo_vec = self.glo_vecs(cam_idx.long())
             else:
                 glo_vec = torch.zeros(batch['origins'].shape[:-1] + (self.num_glo_features,), device=device)
         else:
@@ -335,6 +335,8 @@ class MLP(nn.Module):
     grid_base_resolution: int = 16
     grid_disired_resolution: int = 8192
     grid_log2_hashmap_size: int = 21
+    net_width_glo: int = 128  # The width of the second part of MLP.
+    net_depth_glo: int = 2  # The width of the second part of MLP.
 
     def __init__(self, **kwargs):
         super().__init__()
@@ -396,8 +398,13 @@ class MLP(nn.Module):
             if self.use_n_dot_v:
                 last_dim_rgb += 1
 
-            if self.__class__.__name__ != "PropMLP" and self.num_glo_features > 0:
-                last_dim_rgb += self.num_glo_embeddings
+            if self.num_glo_features > 0:
+                last_dim_glo = self.num_glo_features
+                for i in range(self.net_depth_glo - 1):
+                    self.register_module(f"lin_glo_{i}", nn.Linear(last_dim_glo, self.net_width_glo))
+                    last_dim_glo = self.net_width_glo
+                self.register_module(f"lin_glo_{self.net_depth_glo - 1}", nn.Linear(last_dim_glo, self.bottleneck_width * 2))
+
             input_dim_rgb = last_dim_rgb
             for i in range(self.net_depth_viewdirs):
                 lin = nn.Linear(last_dim_rgb, self.net_width_viewdirs)
@@ -529,6 +536,18 @@ class MLP(nn.Module):
                     # Add bottleneck noise.
                     if rand and (self.bottleneck_noise > 0):
                         bottleneck += self.bottleneck_noise * torch.randn_like(bottleneck)
+
+                    # Append GLO vector if used.
+                    if glo_vec is not None:
+                        for i in range(self.net_depth_glo):
+                            glo_vec = self.get_submodule(f"lin_glo_{i}")(glo_vec)
+                            if i != self.net_depth_glo - 1:
+                                glo_vec = F.relu(glo_vec)
+                        glo_vec = torch.broadcast_to(glo_vec[..., None, :],
+                                                     bottleneck.shape[:-1] + glo_vec.shape[-1:])
+                        scale, shift = glo_vec.chunk(2, dim=-1)
+                        bottleneck = bottleneck * torch.exp(scale) + shift
+
                     x = [bottleneck]
                 else:
                     x = []
@@ -558,12 +577,6 @@ class MLP(nn.Module):
                     dotprod = torch.sum(
                         normals_to_use * viewdirs[..., None, :], dim=-1, keepdim=True)
                     x.append(dotprod)
-
-                # Append GLO vector if used.
-                if glo_vec is not None:
-                    glo_vec = torch.broadcast_to(glo_vec[..., None, :],
-                                                 bottleneck.shape[:-1] + glo_vec.shape[-1:])
-                    x.append(glo_vec)
 
                 # Concatenate bottleneck, directional encoding, and GLO.
                 x = torch.cat(x, dim=-1)
