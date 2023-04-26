@@ -52,6 +52,8 @@ def inner_outer(t0, t1, y1):
 def lossfun_outer(t, w, t_env, w_env):
     """The proposal weight should be an upper envelope on the nerf weight."""
     eps = torch.finfo(t.dtype).eps
+    # eps = 1e-3
+
     _, w_outer = inner_outer(t, t_env, w_env)
     # We assume w_inner <= w <= w_outer. We don't penalize w_inner because it's
     # more effective to pull w_outer up than it is to push w_inner down.
@@ -61,7 +63,8 @@ def lossfun_outer(t, w, t_env, w_env):
 
 def weight_to_pdf(t, w):
     """Turn a vector of weights that sums to 1 into a PDF that integrates to 1."""
-    return w / (t[..., 1:] - t[..., :-1]).clamp_min(torch.finfo(w.dtype).eps ** 2)
+    eps = torch.finfo(t.dtype).eps
+    return w / (t[..., 1:] - t[..., :-1]).clamp_min(eps)
 
 
 def pdf_to_weight(t, p):
@@ -91,7 +94,9 @@ def max_dilate_weights(t,
                        domain=(-torch.inf, torch.inf),
                        renormalize=False):
     """Dilate (via max-pooling) a set of weights."""
-    eps = torch.finfo(w.dtype).eps ** 2
+    eps = torch.finfo(w.dtype).eps
+    # eps = 1e-3
+
     p = weight_to_pdf(t, w)
     t_dilate, p_dilate = max_dilate(t, p, dilation, domain=domain)
     w_dilate = pdf_to_weight(t_dilate, p_dilate)
@@ -190,6 +195,8 @@ def sample(rand,
     t_samples: [batch_size, num_samples].
   """
     eps = torch.finfo(t.dtype).eps
+    # eps = 1e-3
+
     device = t.device
 
     # Draw uniform samples.
@@ -350,6 +357,8 @@ def resample(t, tp, vp, use_avg=False):
     v: tensor with shape (..., n), the values of the resampled step function.
   """
     eps = torch.finfo(t.dtype).eps
+    # eps = 1e-3
+
     if use_avg:
         wp = torch.diff(tp, dim=-1)
         v_numer = resample(t, tp, vp * wp, use_avg=False)
@@ -389,5 +398,5 @@ def blur_stepfun(x, y, r):
           torch.cat([torch.zeros_like(y[..., :1]), y], dim=-1)) / (2 * r)
     y2 = torch.cat([y1, -y1], dim=-1).take_along_dim(xr_idx[..., :-1], dim=-1)
     yr = torch.cumsum((xr[..., 1:] - xr[..., :-1]) *
-                     torch.cumsum(y2, dim=-1), dim=-1).clamp_min(0)
+                      torch.cumsum(y2, dim=-1), dim=-1).clamp_min(0)
     return xr, yr

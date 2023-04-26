@@ -7,11 +7,9 @@ Config.factor = 4
 Model.raydist_fn = 'power_transformation'
 Model.opaque_background = True
 
-PropMLP.warp_fn = @coord.contract
 PropMLP.disable_density_normals = True
 PropMLP.disable_rgb = True
 PropMLP.grid_level_dim = 1
 
-NerfMLP.warp_fn = @coord.contract
 NerfMLP.disable_density_normals = True
 

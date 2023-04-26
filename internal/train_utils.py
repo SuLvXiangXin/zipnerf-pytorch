@@ -141,7 +141,7 @@ def anti_interlevel_loss(ray_history, config):
         wp = ray_results['weights']
         c_, w_ = stepfun.blur_stepfun(c, w_normalize, config.pulse_width[i])
         w_s = stepfun.resample(cp, c_, w_ * (c_[..., 1:] - c_[..., :-1]))
-        loss_anti_interlevel += ((w_s - wp).clamp_min(0) ** 2 / (wp + torch.finfo(w_s.dtype).eps)).mean()
+        loss_anti_interlevel += ((w_s - wp).clamp_min(0) ** 2 / (wp + 1e-5)).mean()
     return config.anti_interlevel_loss_mult * loss_anti_interlevel
 
 

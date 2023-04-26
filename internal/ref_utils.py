@@ -22,12 +22,14 @@ def reflect(viewdirs, normals):
 
 def l2_normalize(x):
     """Normalize x to unit length along last axis."""
-    return torch.nn.functional.normalize(x, dim=-1, eps=torch.finfo(x.dtype).eps)
+    return torch.nn.functional.normalize(x, dim=-1, eps=1e-5)
 
 
 def compute_weighted_mae(weights, normals, normals_gt):
     """Compute weighted mean angular error, assuming normals are unit length."""
-    one_eps = 1 - torch.finfo(weights.dtype).eps
+    # eps = torch.finfo(weights.dtype).eps
+    eps = 1e-3
+    one_eps = 1 - eps
     return (weights * torch.arccos(torch.clip((normals * normals_gt).sum(-1),
                                               -one_eps, one_eps))).sum() / weights.sum() * 180.0 / torch.pi
 

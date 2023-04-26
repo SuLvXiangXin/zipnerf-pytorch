@@ -28,6 +28,8 @@ def linear_to_srgb(linear, eps=None):
     """Assumes `linear` is in [0, 1], see https://en.wikipedia.org/wiki/SRGB."""
     if eps is None:
         eps = torch.finfo(linear.dtype).eps
+        # eps = 1e-3
+
     srgb0 = 323 / 25 * linear
     srgb1 = (211 * linear.clamp_min(eps) ** (5 / 12) - 11) / 200
     return torch.where(linear <= 0.0031308, srgb0, srgb1)

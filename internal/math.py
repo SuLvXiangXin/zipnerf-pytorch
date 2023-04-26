@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 
+@torch.jit.script
 def erf(x):
     return torch.sign(x) * torch.sqrt(1 - torch.exp(-4 / torch.pi * x ** 2))
 

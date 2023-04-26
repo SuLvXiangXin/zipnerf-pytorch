@@ -7,6 +7,7 @@ def lift_gaussian(d, t_mean, t_var, r_var, diag):
     """Lift a Gaussian defined along a ray to 3D coordinates."""
     mean = d[..., None, :] * t_mean[..., None]
     eps = torch.finfo(d.dtype).eps
+    # eps = 1e-3
     d_mag_sq = torch.sum(d ** 2, dim=-1, keepdim=True).clamp_min(eps)
 
     if diag:
@@ -49,6 +50,7 @@ def conical_frustum_to_gaussian(d, t0, t1, base_radius, diag, stable=True):
         mu = (t0 + t1) / 2  # The average of the two `t` values.
         hw = (t1 - t0) / 2  # The half-width of the two `t` values.
         eps = torch.finfo(d.dtype).eps
+        # eps = 1e-3
         t_mean = mu + (2 * mu * hw ** 2) / (3 * mu ** 2 + hw ** 2).clamp_min(eps)
         denom = (3 * mu ** 2 + hw ** 2).clamp_min(eps)
         t_var = (hw ** 2) / 3 - (4 / 15) * hw ** 4 * (12 * mu ** 2 - hw ** 2) / denom ** 2
@@ -171,6 +173,7 @@ def volumetric_rendering(rgbs,
       visualizations if compute_extras=True.
   """
     eps = torch.finfo(rgbs.dtype).eps
+    # eps = 1e-3
     rendering = {}
 
     acc = weights.sum(dim=-1)

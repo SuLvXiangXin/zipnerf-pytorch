@@ -37,12 +37,10 @@ def main(unused_argv):
 
     dataset = datasets.load_dataset('test', config.data_dir, config)
     dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
-                                             num_workers=8,
+                                             num_workers=0,
                                              shuffle=False,
                                              batch_size=1,
                                              collate_fn=dataset.collate_fn,
-                                             persistent_workers=True,
-                                             pin_memory=True,
                                              )
     tb_process_fn = lambda x: x.transpose(2, 0, 1) if len(x.shape) == 3 else x[None]
     if config.rawnerf_mode:
@@ -78,7 +76,6 @@ def main(unused_argv):
         num_eval = min(dataset.size, config.eval_dataset_limit)
         perm = np.random.permutation(num_eval)
         showcase_indices = np.sort(perm[:config.num_showcase_images])
-
         metrics = []
         metrics_cc = []
         showcases = []

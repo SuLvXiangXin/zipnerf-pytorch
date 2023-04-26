@@ -1,29 +1,55 @@
 from internal import math
+from internal import utils
 import numpy as np
 import torch
-from torch.func import vmap, jacrev
+from torch.func import vmap, jacfwd
 
 
 def contract(x):
     """Contracts points towards the origin (Eq 10 of arxiv.org/abs/2111.12077)."""
     eps = torch.finfo(x.dtype).eps
+    # eps = 1e-3
     # Clamping to eps prevents non-finite gradients when x == 0.
     x_mag_sq = torch.sum(x ** 2, dim=-1, keepdim=True).clamp_min(eps)
     z = torch.where(x_mag_sq <= 1, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
-    ## it's wierd that can only use torch.sqrt(x_mag_sq) + torch.sqrt(x_mag_sq)
-    # z = torch.where(x_mag_sq <= 1, x, ((torch.sqrt(x_mag_sq) + torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
     return z
 
 
 def inv_contract(z):
     """The inverse of contract()."""
     eps = torch.finfo(z.dtype).eps
+    # eps = 1e-3
+
     # Clamping to eps prevents non-finite gradients when z == 0.
     z_mag_sq = torch.sum(z ** 2, dim=-1, keepdim=True).clamp_min(eps)
     x = torch.where(z_mag_sq <= 1, z, z / (2 * torch.sqrt(z_mag_sq) - z_mag_sq))
     return x
 
 
+def contract_tuple(x):
+    res = contract(x)
+    return res, res
+
+
+@torch.compile
+def contract_mean_jacobi(x):
+    eps = torch.finfo(x.dtype).eps
+    # eps = 1e-3
+
+    # Clamping to eps prevents non-finite gradients when x == 0.
+    x_mag_sq = torch.sum(x ** 2, dim=-1, keepdim=True).clamp_min(eps)
+    x_mag_sqrt = torch.sqrt(x_mag_sq)
+    x_xT = math.matmul(x[..., None], x[..., None, :])
+    mask = x_mag_sq <= 1
+    z = torch.where(x_mag_sq <= 1, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
+
+    eye = torch.broadcast_to(torch.eye(3, device=x.device), z.shape[:-1] + z.shape[-1:] * 2)
+    jacobi = (2 * x_xT * (1 - x_mag_sqrt[..., None]) + (2 * x_mag_sqrt[..., None] ** 3 - x_mag_sqrt[..., None] ** 2) * eye) / x_mag_sqrt[..., None] ** 4
+    jacobi = torch.where(mask[..., None], eye, jacobi)
+    return z, jacobi
+
+
+@torch.no_grad()
 def track_linearize(fn, mean, std):
     """Apply function `fn` to a set of means and covariances, ala a Kalman filter.
 
@@ -35,17 +61,24 @@ def track_linearize(fn, mean, std):
   Args:
     fn: the function applied to the Gaussians parameterized by (mean, cov).
     mean: a tensor of means, where the last axis is the dimension.
-    cov: a tensor of covariances, where the last two axes are the dimensions.
+    std: a tensor of covariances, where the last two axes are the dimensions.
 
   Returns:
     fn_mean: the transformed means.
     fn_cov: the transformed covariances.
   """
+    if fn == 'contract':
+        fn = contract_mean_jacobi
+    else:
+        raise NotImplementedError
+
     pre_shape = mean.shape[:-1]
     mean = mean.reshape(-1, 3)
     std = std.reshape(-1)
-    mean = contract(mean)
-    jvp = vmap(jacrev(fn))(mean)
+
+    # jvp, mean = vmap(jacfwd(contract_tuple, has_aux=True))(mean)
+    mean, jvp = fn(mean)
+
     std = std * torch.linalg.det(jvp) ** (1 / mean.shape[-1])
     mean = mean.reshape(*pre_shape, 3)
     std = std.reshape(*pre_shape)
@@ -65,7 +98,8 @@ def inv_power_transformation(x, lam):
     inverse power transformation
     """
     lam_1 = np.abs(lam - 1)
-    eps = torch.finfo(x.dtype).eps   # may cause inf
+    eps = torch.finfo(x.dtype).eps  # may cause inf
+    # eps = 1e-3
     return ((x * lam / lam_1 + 1 + eps) ** (1 / lam) - 1) * lam_1
 
 
@@ -138,6 +172,7 @@ def integrated_pos_enc(mean, var, min_deg, max_deg):
     return expected_sin(
         torch.cat([scaled_mean, scaled_mean + 0.5 * torch.pi], dim=-1),
         torch.cat([scaled_var] * 2, dim=-1))
+
 
 def lift_and_diagonalize(mean, cov, basis):
     """Project `mean` and `cov` onto basis and diagonalize the projected cov."""

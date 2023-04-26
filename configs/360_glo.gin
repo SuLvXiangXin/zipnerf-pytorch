@@ -7,13 +7,9 @@ Model.raydist_fn = 'power_transformation'
 Model.num_glo_features = 128
 Model.opaque_background = True
 
-PropMLP.warp_fn = @coord.contract
-PropMLP.net_depth = 4
-PropMLP.net_width = 256
 PropMLP.disable_density_normals = True
 PropMLP.disable_rgb = True
+PropMLP.grid_level_dim = 1
 
-NerfMLP.warp_fn = @coord.contract
-NerfMLP.net_depth = 8
-NerfMLP.net_width = 1024
+
 NerfMLP.disable_density_normals = True

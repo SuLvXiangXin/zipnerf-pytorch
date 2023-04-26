@@ -18,7 +18,6 @@ from gridencoder import GridEncoder
 from torch_scatter import segment_coo
 
 gin.config.external_configurable(math.safe_exp, module='math')
-gin.config.external_configurable(coord.contract, module='coord')
 
 
 def set_kwargs(self, kwargs):
@@ -36,7 +35,7 @@ class Model(nn.Module):
     anneal_slope: float = 10  # Higher = more rapid annealing.
     stop_level_grad: bool = True  # If True, don't backprop across levels.
     use_viewdirs: bool = True  # If True, use view directions as input.
-    raydist_fn = None  # The curve used for ray dists.
+    raydist_fn = 'contract'  # The curve used for ray dists.
     single_jitter: bool = True  # If True, jitter whole rays instead of samples.
     dilation_multiplier: float = 0.5  # How much to dilate intervals relatively.
     dilation_bias: float = 0.0025  # How much to dilate intervals absolutely.
@@ -305,7 +304,7 @@ class MLP(nn.Module):
     bottleneck_width: int = 256  # The width of the bottleneck vector.
     net_depth_viewdirs: int = 2  # The depth of the second part of ML.
     net_width_viewdirs: int = 256  # The width of the second part of MLP.
-    skip_layer_dir: int = 0  # Add a skip connection to 2nd MLP every N layers.
+    skip_layer_dir: int = 0  # Add a skip connection to 2nd MLP after Nth layers.
     num_rgb_channels: int = 3  # The number of RGB channels.
     deg_view: int = 4  # Degree of encoding for viewdirs or refdirs.
     use_reflections: bool = False  # If True, use refdirs instead of viewdirs.
@@ -325,7 +324,7 @@ class MLP(nn.Module):
     enable_pred_normals: bool = False  # If True compute predicted normals.
     disable_density_normals: bool = False  # If True don't compute normals.
     disable_rgb: bool = False  # If True don't output RGB.
-    warp_fn = None
+    warp_fn = 'contract'
     num_glo_features: int = 0  # GLO vector length, disabled if 0.
     num_glo_embeddings: int = 1000  # Upper bound on max number of train images.
     scale_featurization: bool = False
@@ -415,6 +414,37 @@ class MLP(nn.Module):
                     last_dim_rgb += input_dim_rgb
             self.rgb_layer = nn.Linear(last_dim_rgb, self.num_rgb_channels)
 
+    def predict_density(self, means, stds, return_weights=False, rand=False):
+        """Helper function to output density."""
+        # Encode input positions
+        if self.warp_fn is not None:
+            means, stds = coord.track_linearize(self.warp_fn, means, stds)
+            # contract [-2, 2] to [-1, 1]
+            bound = 2
+            means = means / bound
+            stds = stds / bound
+        features = self.encoder(means, bound=1).unflatten(-1, (self.encoder.num_levels, -1))
+        weights = torch.erf(1 / torch.sqrt(8 * stds[..., None] ** 2 * self.encoder.grid_sizes ** 2))
+        features = (features * weights[..., None]).mean(dim=-3).flatten(-2, -1)
+        if self.scale_featurization:
+            with torch.no_grad():
+                vl2mean = segment_coo((self.encoder.embeddings ** 2).sum(-1),
+                                      self.encoder.idx,
+                                      torch.zeros(self.grid_num_levels, device=weights.device),
+                                      self.grid_num_levels,
+                                      reduce='mean'
+                                      )
+            featurized_w = (2 * weights.mean(dim=-2) - 1) * (self.encoder.init_std ** 2 + vl2mean).sqrt()
+            features = torch.cat([features, featurized_w], dim=-1)
+        x = self.density_layer(features)
+        raw_density = x[..., 0]  # Hardcoded to a single channel.
+        # Add noise to regularize the density predictions if needed.
+        if rand and (self.density_noise > 0):
+            raw_density += self.density_noise * torch.randn_like(raw_density)
+        if return_weights:
+            return raw_density, x, weights
+        return raw_density, x
+
     def forward(self,
                 rand,
                 means, stds,
@@ -446,45 +476,13 @@ class MLP(nn.Module):
       normals_pred: [..., 3], or None.
       roughness: [..., 1], or None.
     """
-
-        def predict_density(means, stds, return_weights=False):
-            """Helper function to output density."""
-            # Encode input positions
-
-            if self.warp_fn is not None:
-                means, stds = coord.track_linearize(self.warp_fn, means, stds)
-                bound = 2
-                means = means / bound
-                stds = stds / bound
-            features = self.encoder(means, bound=1).unflatten(-1, (self.encoder.num_levels, -1))
-            weights = math.erf(1 / torch.sqrt(8 * stds[..., None] ** 2 * self.encoder.grid_sizes ** 2))
-            features = (features * weights[..., None]).mean(dim=-3).flatten(-2, -1)
-            if self.scale_featurization:
-                with torch.no_grad():
-                    vl2mean = segment_coo((self.encoder.embeddings ** 2).sum(-1),
-                                          self.encoder.idx,
-                                          torch.zeros(self.grid_num_levels, device=weights.device),
-                                          self.grid_num_levels,
-                                          reduce='mean'
-                                          )
-                featurized_w = (2 * weights.mean(dim=-2) - 1) * (self.encoder.init_std ** 2 + vl2mean).sqrt()
-                features = torch.cat([features, featurized_w], dim=-1)
-            x = self.density_layer(features)
-            raw_density = x[..., 0]  # Hardcoded to a single channel.
-            # Add noise to regularize the density predictions if needed.
-            if rand and (self.density_noise > 0):
-                raw_density += self.density_noise * torch.randn_like(raw_density)
-            if return_weights:
-                return raw_density, x, weights
-            return raw_density, x
-
         if self.disable_density_normals:
-            raw_density, x = predict_density(means, stds)
+            raw_density, x = self.predict_density(means, stds, rand=rand)
             raw_grad_density = None
             normals = None
         else:
             means.requires_grad_(True)
-            raw_density, x, weights = predict_density(means, stds, True)
+            raw_density, x, weights = self.predict_density(means, stds, True, rand=rand)
             d_output = torch.ones_like(raw_density, requires_grad=False, device=raw_density.device)
             raw_grad_density = torch.autograd.grad(
                 outputs=raw_density,
