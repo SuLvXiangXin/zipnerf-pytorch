@@ -197,7 +197,7 @@ class Model(nn.Module):
             tdist = s_to_t(sdist)
 
             # distance along ray, while tdist is depth
-            raydist = tdist / batch['directions'].norm(dim=-1)[..., None]
+            raydist = tdist * batch['directions'].norm(dim=-1)[..., None]
             # Cast our rays, by turning our distance intervals into Gaussians.
             means, stds = render.cast_rays(
                 raydist,
