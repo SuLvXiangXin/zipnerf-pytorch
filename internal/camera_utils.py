@@ -530,7 +530,8 @@ def pixels_to_rays(pix_x_int, pix_y_int, pixtocams,
     directions, dx, dy = directions_stacked
 
     origins = np.broadcast_to(camtoworlds[..., :3, -1], directions.shape)
-    viewdirs = directions / np.linalg.norm(directions, axis=-1, keepdims=True)
+    norm = np.linalg.norm(directions, axis=-1, keepdims=True)
+    viewdirs = directions / norm
 
     if pixtocam_ndc is None:
         # Distance from each unit-norm direction vector to its neighbors.
@@ -550,6 +551,10 @@ def pixels_to_rays(pix_x_int, pix_y_int, pixtocams,
     # Cut the distance in half, multiply it to match the variance of a uniform
     # distribution the size of a pixel (1/12, see the original mipnerf paper).
     radii = (0.5 * (dx_norm + dy_norm))[..., None] * 2 / np.sqrt(12)
+
+    # different with multinerf
+    # radii is not parallelized with image plane
+    radii /= norm
 
     return origins, directions, viewdirs, radii, imageplane
 
