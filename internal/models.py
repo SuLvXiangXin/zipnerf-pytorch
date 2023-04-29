@@ -196,9 +196,11 @@ class Model(nn.Module):
             # Convert normalized distances to metric distances.
             tdist = s_to_t(sdist)
 
+            # distance along ray, while tdist is depth
+            raydist = tdist / batch['directions'].norm(dim=-1)[..., None]
             # Cast our rays, by turning our distance intervals into Gaussians.
             means, stds = render.cast_rays(
-                tdist,
+                raydist,
                 batch['origins'],
                 batch['viewdirs'],
                 batch['radii'],
@@ -414,10 +416,10 @@ class MLP(nn.Module):
                     last_dim_rgb += input_dim_rgb
             self.rgb_layer = nn.Linear(last_dim_rgb, self.num_rgb_channels)
 
-    def predict_density(self, means, stds, return_weights=False, rand=False):
+    def predict_density(self, means, stds, rand=False, no_warp=False):
         """Helper function to output density."""
         # Encode input positions
-        if self.warp_fn is not None:
+        if self.warp_fn is not None and not no_warp:
             means, stds = coord.track_linearize(self.warp_fn, means, stds)
             # contract [-2, 2] to [-1, 1]
             bound = 2
@@ -441,9 +443,7 @@ class MLP(nn.Module):
         # Add noise to regularize the density predictions if needed.
         if rand and (self.density_noise > 0):
             raw_density += self.density_noise * torch.randn_like(raw_density)
-        if return_weights:
-            return raw_density, x, weights
-        return raw_density, x
+        return raw_density, x, means.mean(dim=-2)
 
     def forward(self,
                 rand,
@@ -477,20 +477,21 @@ class MLP(nn.Module):
       roughness: [..., 1], or None.
     """
         if self.disable_density_normals:
-            raw_density, x = self.predict_density(means, stds, rand=rand)
+            raw_density, x, means_contract = self.predict_density(means, stds, rand=rand)
             raw_grad_density = None
             normals = None
         else:
             means.requires_grad_(True)
-            raw_density, x, weights = self.predict_density(means, stds, True, rand=rand)
+            raw_density, x, means_contract = self.predict_density(means, stds, rand=rand)
             d_output = torch.ones_like(raw_density, requires_grad=False, device=raw_density.device)
-            raw_grad_density = torch.autograd.grad(
-                outputs=raw_density,
-                inputs=means,
-                grad_outputs=d_output,
-                create_graph=True,
-                retain_graph=True,
-                only_inputs=True)[0]
+            with torch.enable_grad():
+                raw_grad_density = torch.autograd.grad(
+                    outputs=raw_density,
+                    inputs=means,
+                    grad_outputs=d_output,
+                    create_graph=True,
+                    retain_graph=True,
+                    only_inputs=True)[0]
             raw_grad_density = raw_grad_density.mean(-2)
             # Compute normal vectors as negative normalized density gradient.
             # We normalize the gradient of raw (pre-activation) density because
@@ -607,6 +608,7 @@ class MLP(nn.Module):
             rgb = rgb * (1 + 2 * self.rgb_padding) - self.rgb_padding
 
         return dict(
+            coord=means_contract,
             density=density,
             rgb=rgb,
             raw_grad_density=raw_grad_density,
@@ -632,7 +634,8 @@ def render_image(render_fn,
                  accelerator: accelerate.Accelerator,
                  batch,
                  rand,
-                 config):
+                 config,
+                 verbose=True):
     """Render all the pixels of an image (in test mode).
 
   Args:
@@ -653,7 +656,7 @@ def render_image(render_fn,
 
     local_rank = accelerator.local_process_index
     chunks = []
-    if accelerator.is_local_main_process:
+    if accelerator.is_local_main_process and verbose:
         idx0s = tqdm(range(0, num_rays, config.render_chunk_size), desc="Rendering chunk")
     else:
         idx0s = range(0, num_rays, config.render_chunk_size)

@@ -35,6 +35,7 @@ class Config:
     llffhold: int = 8  # Use every Nth image for the test set. Used only by LLFF.
     # If true, use all input images for training.
     llff_use_all_images_for_training: bool = False
+    llff_use_all_images_for_testing: bool = False
     use_tiffs: bool = False  # If True, use 32-bit TIFFs. Used only by Blender.
     compute_disp_metrics: bool = False  # If True, load and compute disparity MSE.
     compute_normal_metrics: bool = False  # If True, load and compute normal MAE.
@@ -136,6 +137,13 @@ class Config:
     sample_m_train: int = 3
     sample_n_test: int = 49
     sample_m_test: int = 19
+
+    # extract mesh
+    valid_weight_thresh: float = 0.05
+    mesh_resolution: int = 512
+    mesh_radius: float = 0.2
+    refine_save_interval: int = 1
+    refine_iters: int = 0
 
 
 def define_common_flags():

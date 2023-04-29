@@ -59,12 +59,12 @@ def main(unused_argv):
                                              batch_size=1,
                                              collate_fn=dataset.collate_fn,
                                              persistent_workers=True,
-                                             pin_memory=True,
                                              )
     test_dataloader = torch.utils.data.DataLoader(np.arange(len(test_dataset)),
-                                                  num_workers=0,
+                                                  num_workers=4,
                                                   shuffle=False,
                                                   batch_size=1,
+                                                  persistent_workers=True,
                                                   collate_fn=test_dataset.collate_fn,
                                                   )
     if config.rawnerf_mode:
@@ -159,7 +159,7 @@ def main(unused_argv):
 
         # interlevel loss in ZipNeRF360
         if config.anti_interlevel_loss_mult > 0 and not module.single_mlp:
-            losses['interlevel'] = train_utils.anti_interlevel_loss(ray_history, config)
+            losses['anti_interlevel'] = train_utils.anti_interlevel_loss(ray_history, config)
 
         # distortion loss
         if config.distortion_loss_mult > 0:
@@ -172,13 +172,13 @@ def main(unused_argv):
                                                                  config)
         # hash grid l2 weight decay
         if config.hash_decay_mults > 0:
-            losses['hash_decay'] = train_utils.hash_decay_loss(model, config)
+            losses['hash_decay'] = train_utils.hash_decay_loss(module, config)
 
         # normal supervision loss in RefNeRF
         if (config.predicted_normal_coarse_loss_mult > 0 or
                 config.predicted_normal_loss_mult > 0):
             losses['predicted_normals'] = train_utils.predicted_normal_loss(
-                model, ray_history, config)
+                module, ray_history, config)
         loss = sum(losses.values())
         stats['loss'] = loss.item()
         stats['losses'] = tree_map(lambda x: x.item(), losses)
@@ -297,6 +297,7 @@ def main(unused_argv):
             test_batch = accelerate.utils.send_to_device(test_batch, accelerator.device)
 
             # render a single image with all distributed processes
+            model.eval()
             rendering = models.render_image(
                 lambda rand, x: model(rand,
                                       x,
@@ -307,6 +308,7 @@ def main(unused_argv):
                                       ),
                 accelerator,
                 test_batch, False, config)
+            model.train()
 
             # move to numpy
             rendering = tree_map(lambda x: x.detach().cpu().numpy(), rendering)

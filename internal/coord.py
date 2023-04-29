@@ -26,12 +26,22 @@ def inv_contract(z):
     return x
 
 
+def inv_contract_np(z):
+    """The inverse of contract()."""
+    eps = np.finfo(z.dtype).eps
+    # eps = 1e-3
+
+    # Clamping to eps prevents non-finite gradients when z == 0.
+    z_mag_sq = np.maximum(eps, np.sum(z ** 2, axis=-1, keepdims=True))
+    x = np.where(z_mag_sq <= 1, z, z / (2 * np.sqrt(z_mag_sq) - z_mag_sq))
+    return x
+
+
 def contract_tuple(x):
     res = contract(x)
     return res, res
 
 
-@torch.compile
 def contract_mean_jacobi(x):
     eps = torch.finfo(x.dtype).eps
     # eps = 1e-3
@@ -49,7 +59,6 @@ def contract_mean_jacobi(x):
     return z, jacobi
 
 
-@torch.no_grad()
 def track_linearize(fn, mean, std):
     """Apply function `fn` to a set of means and covariances, ala a Kalman filter.
 

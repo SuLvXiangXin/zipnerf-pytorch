@@ -620,8 +620,12 @@ class LLFF(Dataset):
             train_indices = all_indices
         else:
             train_indices = all_indices % config.llffhold != 0
+        if config.llff_use_all_images_for_testing:
+            test_indices = all_indices
+        else:
+            test_indices = all_indices % config.llffhold == 0
         split_indices = {
-            utils.DataSplit.TEST: all_indices[all_indices % config.llffhold == 0],
+            utils.DataSplit.TEST: all_indices[test_indices],
             utils.DataSplit.TRAIN: all_indices[train_indices],
         }
         indices = split_indices[self.split]

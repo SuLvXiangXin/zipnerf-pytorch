@@ -82,6 +82,7 @@ def main(unused_argv):
     config.local_rank = accelerator.local_process_index
     utils.seed_everything(config.seed + accelerator.local_process_index)
     model = models.Model(config=config)
+    model.eval()
 
     step = checkpoints.restore_checkpoint(config.exp_path, model)
     accelerator.print(f'Rendering checkpoint at step {step}.')
@@ -89,7 +90,7 @@ def main(unused_argv):
 
     dataset = datasets.load_dataset('test', config.data_dir, config)
     dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
-                                             num_workers=0,
+                                             num_workers=4,
                                              shuffle=False,
                                              batch_size=1,
                                              collate_fn=dataset.collate_fn,

@@ -11,6 +11,7 @@ opencv_python
 Pillow
 plyfile
 rawpy
+ninja
 scipy
 scikit-image
 tensorboardX
