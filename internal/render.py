@@ -179,7 +179,10 @@ def volumetric_rendering(rgbs,
     acc = weights.sum(dim=-1)
     bg_w = (1 - acc[..., None]).clamp_min(0.)  # The weight of the background.
     rgb = (weights[..., None] * rgbs).sum(dim=-2) + bg_w * bg_rgbs
+    t_mids = 0.5 * (tdist[..., :-1] + tdist[..., 1:])
+    depth = (weights * t_mids).sum(dim=-1)
     rendering['rgb'] = rgb
+    rendering['depth'] = depth
 
     if compute_extras:
         rendering['acc'] = acc
@@ -190,7 +193,6 @@ def volumetric_rendering(rgbs,
                     rendering[k] = (weights[..., None] * v).sum(dim=-2)
 
         expectation = lambda x: (weights * x).sum(dim=-1) / acc.clamp_min(eps)
-        t_mids = 0.5 * (tdist[..., :-1] + tdist[..., 1:])
         # For numerical stability this expectation is computing using log-distance.
         rendering['distance_mean'] = (
             torch.clip(
