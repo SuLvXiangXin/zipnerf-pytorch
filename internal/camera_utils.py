@@ -552,10 +552,6 @@ def pixels_to_rays(pix_x_int, pix_y_int, pixtocams,
     # distribution the size of a pixel (1/12, see the original mipnerf paper).
     radii = (0.5 * (dx_norm + dy_norm))[..., None] * 2 / np.sqrt(12)
 
-    # different with multinerf
-    # radii is not parallelized with image plane
-    radii /= norm
-
     return origins, directions, viewdirs, radii, imageplane
 
 

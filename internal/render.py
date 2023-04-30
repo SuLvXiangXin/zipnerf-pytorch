@@ -87,7 +87,7 @@ def cylinder_to_gaussian(d, t0, t1, radius, diag):
     return lift_gaussian(d, t_mean, t_var, r_var, diag)
 
 
-def cast_rays(tdist, origins, viewdirs, radii, rand=True, n=7, m=3, std_scale=0.35):
+def cast_rays(tdist, origins, directions, radii, rand=True, n=7, m=3, std_scale=0.35):
     """Cast rays (cone- or cylinder-shaped) and featurize sections of it.
 
   Args:
@@ -116,10 +116,13 @@ def cast_rays(tdist, origins, viewdirs, radii, rand=True, n=7, m=3, std_scale=0.
     ], dim=-1)
     stds = std_scale * radii[..., None] * t
 
-    rand_vec = torch.randn_like(viewdirs)
-    ortho1 = F.normalize(torch.cross(viewdirs, rand_vec, dim=-1), dim=-1)
-    ortho2 = F.normalize(torch.cross(viewdirs, ortho1, dim=-1), dim=-1)
-    basis_matrix = torch.stack([ortho1, ortho2, viewdirs], dim=-1)
+    rand_vec = torch.randn_like(directions)
+    ortho1 = F.normalize(torch.cross(directions, rand_vec, dim=-1), dim=-1)
+    ortho2 = F.normalize(torch.cross(directions, ortho1, dim=-1), dim=-1)
+
+    # just use directions to be the third vector, while the cross section of cone
+    # is parallel to the image plane
+    basis_matrix = torch.stack([ortho1, ortho2, directions], dim=-1)
     means = torch.matmul(means, basis_matrix[..., None, :, :].transpose(-1, -2))
     means = means + origins[..., None, None, :]
     # import trimesh

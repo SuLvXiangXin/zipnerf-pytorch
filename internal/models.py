@@ -196,13 +196,11 @@ class Model(nn.Module):
             # Convert normalized distances to metric distances.
             tdist = s_to_t(sdist)
 
-            # distance along ray, while tdist is depth
-            raydist = tdist * batch['directions'].norm(dim=-1)[..., None]
             # Cast our rays, by turning our distance intervals into Gaussians.
             means, stds = render.cast_rays(
-                raydist,
+                tdist,
                 batch['origins'],
-                batch['viewdirs'],
+                batch['directions'],
                 batch['radii'],
                 rand,
                 n=sample_n,
