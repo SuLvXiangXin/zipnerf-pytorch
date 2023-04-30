@@ -26,22 +26,12 @@ def inv_contract(z):
     return x
 
 
-def inv_contract_np(z):
-    """The inverse of contract()."""
-    eps = np.finfo(z.dtype).eps
-    # eps = 1e-3
-
-    # Clamping to eps prevents non-finite gradients when z == 0.
-    z_mag_sq = np.maximum(eps, np.sum(z ** 2, axis=-1, keepdims=True))
-    x = np.where(z_mag_sq <= 1, z, z / (2 * np.sqrt(z_mag_sq) - z_mag_sq))
-    return x
-
-
 def contract_tuple(x):
     res = contract(x)
     return res, res
 
 
+@torch.compile
 def contract_mean_jacobi(x):
     eps = torch.finfo(x.dtype).eps
     # eps = 1e-3
@@ -58,7 +48,20 @@ def contract_mean_jacobi(x):
     jacobi = torch.where(mask[..., None], eye, jacobi)
     return z, jacobi
 
+@torch.compile
+def contract_mean_std(x, std):
+    eps = torch.finfo(x.dtype).eps
+    # eps = 1e-3
+    # Clamping to eps prevents non-finite gradients when x == 0.
+    x_mag_sq = torch.sum(x ** 2, dim=-1, keepdim=True).clamp_min(eps)
+    x_mag_sqrt = torch.sqrt(x_mag_sq)
+    mask = x_mag_sq <= 1
+    z = torch.where(mask, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
+    det = ((1/x_mag_sq)*((2/x_mag_sqrt-1/x_mag_sq)**2))[...,0]
 
+    std = torch.where(mask[...,0], std, (det**(1/x.shape[-1]))*std)
+    return z, std
+@torch.no_grad()
 def track_linearize(fn, mean, std):
     """Apply function `fn` to a set of means and covariances, ala a Kalman filter.
 
@@ -86,9 +89,10 @@ def track_linearize(fn, mean, std):
     std = std.reshape(-1)
 
     # jvp, mean = vmap(jacfwd(contract_tuple, has_aux=True))(mean)
-    mean, jvp = fn(mean)
+    # mean, jvp = fn(mean)
+    # std = std * torch.linalg.det(jvp) ** (1 / mean.shape[-1])
+    mean, std = contract_mean_std(mean, std) # calculate det explicitly by using eigenvalues
 
-    std = std * torch.linalg.det(jvp) ** (1 / mean.shape[-1])
     mean = mean.reshape(*pre_shape, 3)
     std = std.reshape(*pre_shape)
     return mean, std
