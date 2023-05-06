@@ -120,8 +120,8 @@ def cast_rays(tdist, origins, directions, radii, rand=True, n=7, m=3, std_scale=
     ortho1 = F.normalize(torch.cross(directions, rand_vec, dim=-1), dim=-1)
     ortho2 = F.normalize(torch.cross(directions, ortho1, dim=-1), dim=-1)
 
-    # just use directions to be the third vector, while the cross section of cone
-    # is parallel to the image plane
+    # just use directions to be the third vector of the orthonormal basis,
+    # while the cross section of cone is parallel to the image plane
     basis_matrix = torch.stack([ortho1, ortho2, directions], dim=-1)
     means = torch.matmul(means, basis_matrix[..., None, :, :].transpose(-1, -2))
     means = means + origins[..., None, None, :]

@@ -105,3 +105,26 @@ def sorted_interp(x, xp, fp):
     offset = torch.clip(torch.nan_to_num((x - xp0) / (xp1 - xp0), 0), 0, 1)
     ret = fp0 + offset * (fp1 - fp0)
     return ret
+
+
+def sorted_interp_quad(x, xp, fpdf, fcdf):
+    """interp in quadratic"""
+
+    # Identify the location in `xp` that corresponds to each `x`.
+    # The final `True` index in `mask` is the start of the matching interval.
+    mask = x[..., None, :] >= xp[..., :, None]
+
+    def find_interval(x):
+        # Grab the value where `mask` switches from True to False, and vice versa.
+        # This approach takes advantage of the fact that `x` is sorted.
+        x0 = torch.max(torch.where(mask, x[..., None], x[..., :1, None]), -2).values
+        x1 = torch.min(torch.where(~mask, x[..., None], x[..., -1:, None]), -2).values
+        return x0, x1
+
+    fpdf0, fpdf1 = find_interval(fpdf)
+    fcdf0, fcdf1 = find_interval(fcdf)
+    xp0, xp1 = find_interval(xp)
+
+    offset = torch.clip(torch.nan_to_num((x - xp0) / (xp1 - xp0), 0), 0, 1)
+    ret = fcdf0 + (x - xp0) * (fpdf0 + fpdf1 * offset + fpdf0 * (1 - offset)) / 2
+    return ret

@@ -140,7 +140,17 @@ def anti_interlevel_loss(ray_history, config):
         cp = ray_results['sdist']
         wp = ray_results['weights']
         c_, w_ = stepfun.blur_stepfun(c, w_normalize, config.pulse_width[i])
-        w_s = stepfun.resample(cp, c_, w_ * (c_[..., 1:] - c_[..., :-1]))
+
+        # piecewise linear pdf to piecewise quadratic cdf
+        area = 0.5 * (w_[..., 1:] + w_[..., :-1]) * (c_[..., 1:] - c_[..., :-1])
+        cdf = torch.cat([torch.zeros_like(area[..., :1]), torch.cumsum(area, dim=-1)], dim=-1)
+
+        # query piecewise quadratic interpolation
+        cdf_interp = math.sorted_interp_quad(cp, c_, w_, cdf)
+
+        # difference between adjacent interpolated values
+        w_s = torch.diff(cdf_interp, dim=-1)
+
         loss_anti_interlevel += ((w_s - wp).clamp_min(0) ** 2 / (wp + 1e-5)).mean()
     return config.anti_interlevel_loss_mult * loss_anti_interlevel
 
@@ -180,10 +190,7 @@ def hash_decay_loss(model, config):
     for name, param in sorted(model.named_parameters(), key=lambda x: x[0]):
         if 'encoder' in name:
             params.append(param)
-            if hasattr(model, 'module'):
-                idxs.append(getattr(model.module, name.split('.')[1]).encoder.idx)
-            else:
-                idxs.append(getattr(model, name.split('.')[0]).encoder.idx)
+            idxs.append(getattr(model, name.split('.')[0]).encoder.idx)
     for param, idx in zip(params, idxs):
         loss_hash_decay += segment_coo(param ** 2,
                                        idx,

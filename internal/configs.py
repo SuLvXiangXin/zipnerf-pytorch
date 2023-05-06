@@ -139,7 +139,7 @@ class Config:
     sample_m_test: int = 19
 
     # extract mesh
-    valid_weight_thresh: float = 0.05
+    valid_weight_thresh: float = 0.005
     mesh_resolution: int = 512
     mesh_radius: float = 0.2
     refine_save_interval: int = 1

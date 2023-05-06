@@ -399,4 +399,5 @@ def blur_stepfun(x, y, r):
     y2 = torch.cat([y1, -y1], dim=-1).take_along_dim(xr_idx[..., :-1], dim=-1)
     yr = torch.cumsum((xr[..., 1:] - xr[..., :-1]) *
                       torch.cumsum(y2, dim=-1), dim=-1).clamp_min(0)
+    yr = torch.cat([torch.zeros_like(yr[..., :1]), yr], dim=-1)
     return xr, yr

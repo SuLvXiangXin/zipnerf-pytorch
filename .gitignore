@@ -8,3 +8,6 @@ __MACOSX/
 scripts/concat_videos.py
 exp/
 data/
+test.py
+*.mp4
+bake.py

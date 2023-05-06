@@ -2,7 +2,7 @@ from internal import math
 from internal import utils
 import numpy as np
 import torch
-from torch.func import vmap, jacfwd
+from torch.func import vmap, jacrev
 
 
 def contract(x):
@@ -44,9 +44,11 @@ def contract_mean_jacobi(x):
     z = torch.where(x_mag_sq <= 1, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
 
     eye = torch.broadcast_to(torch.eye(3, device=x.device), z.shape[:-1] + z.shape[-1:] * 2)
-    jacobi = (2 * x_xT * (1 - x_mag_sqrt[..., None]) + (2 * x_mag_sqrt[..., None] ** 3 - x_mag_sqrt[..., None] ** 2) * eye) / x_mag_sqrt[..., None] ** 4
+    jacobi = (2 * x_xT * (1 - x_mag_sqrt[..., None]) + (
+                2 * x_mag_sqrt[..., None] ** 3 - x_mag_sqrt[..., None] ** 2) * eye) / x_mag_sqrt[..., None] ** 4
     jacobi = torch.where(mask[..., None], eye, jacobi)
     return z, jacobi
+
 
 @torch.compile
 def contract_mean_std(x, std):
@@ -57,10 +59,12 @@ def contract_mean_std(x, std):
     x_mag_sqrt = torch.sqrt(x_mag_sq)
     mask = x_mag_sq <= 1
     z = torch.where(mask, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
-    det = ((1/x_mag_sq)*((2/x_mag_sqrt-1/x_mag_sq)**2))[...,0]
+    det = ((1 / x_mag_sq) * ((2 / x_mag_sqrt - 1 / x_mag_sq) ** 2))[..., 0]
 
-    std = torch.where(mask[...,0], std, (det**(1/x.shape[-1]))*std)
+    std = torch.where(mask[..., 0], std, (det ** (1 / x.shape[-1])) * std)
     return z, std
+
+
 @torch.no_grad()
 def track_linearize(fn, mean, std):
     """Apply function `fn` to a set of means and covariances, ala a Kalman filter.
@@ -88,10 +92,17 @@ def track_linearize(fn, mean, std):
     mean = mean.reshape(-1, 3)
     std = std.reshape(-1)
 
-    # jvp, mean = vmap(jacfwd(contract_tuple, has_aux=True))(mean)
-    # mean, jvp = fn(mean)
-    # std = std * torch.linalg.det(jvp) ** (1 / mean.shape[-1])
-    mean, std = contract_mean_std(mean, std) # calculate det explicitly by using eigenvalues
+    # jvp_1, mean_1 = vmap(jacrev(contract_tuple, has_aux=True))(mean)
+    # std_1 = std * torch.linalg.det(jvp_1) ** (1 / mean.shape[-1])
+    #
+    # mean_2, jvp_2 = fn(mean)
+    # std_2 = std * torch.linalg.det(jvp_2) ** (1 / mean.shape[-1])
+    #
+    # mean_3, std_3 = contract_mean_std(mean, std)  # calculate det explicitly by using eigenvalues
+    # torch.allclose(std_1, std_3, atol=1e-7)  # True
+    # torch.allclose(mean_1, mean_3)  # True
+    # import ipdb; ipdb.set_trace()
+    mean, std = contract_mean_std(mean, std)  # calculate det explicitly by using eigenvalues
 
     mean = mean.reshape(*pre_shape, 3)
     std = std.reshape(*pre_shape)

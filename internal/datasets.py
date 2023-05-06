@@ -903,7 +903,7 @@ if __name__ == '__main__':
     config.world_size = accelerator.num_processes
     config.local_rank = accelerator.local_process_index
     config.factor = 8
-    dataset = LLFF('train', '/SSD_DISK/datasets/360_v2/bicycle', config)
+    dataset = LLFF('test', '/SSD_DISK/datasets/360_v2/bicycle', config)
     print(len(dataset))
     for _ in tqdm(dataset):
         pass

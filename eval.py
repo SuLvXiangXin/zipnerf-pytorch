@@ -37,10 +37,8 @@ def main(unused_argv):
 
     dataset = datasets.load_dataset('test', config.data_dir, config)
     dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
-                                             num_workers=4,
                                              shuffle=False,
                                              batch_size=1,
-                                             persistent_workers=True,
                                              collate_fn=dataset.collate_fn,
                                              )
     tb_process_fn = lambda x: x.transpose(2, 0, 1) if len(x.shape) == 3 else x[None]

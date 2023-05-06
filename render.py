@@ -90,7 +90,6 @@ def main(unused_argv):
 
     dataset = datasets.load_dataset('test', config.data_dir, config)
     dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
-                                             num_workers=4,
                                              shuffle=False,
                                              batch_size=1,
                                              collate_fn=dataset.collate_fn,

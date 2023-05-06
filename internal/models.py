@@ -35,7 +35,7 @@ class Model(nn.Module):
     anneal_slope: float = 10  # Higher = more rapid annealing.
     stop_level_grad: bool = True  # If True, don't backprop across levels.
     use_viewdirs: bool = True  # If True, use view directions as input.
-    raydist_fn = 'contract'  # The curve used for ray dists.
+    raydist_fn = 'power_transformation'  # The curve used for ray dists.
     single_jitter: bool = True  # If True, jitter whole rays instead of samples.
     dilation_multiplier: float = 0.5  # How much to dilate intervals relatively.
     dilation_bias: float = 0.0025  # How much to dilate intervals absolutely.
@@ -479,10 +479,10 @@ class MLP(nn.Module):
             raw_grad_density = None
             normals = None
         else:
-            means.requires_grad_(True)
-            raw_density, x, means_contract = self.predict_density(means, stds, rand=rand)
-            d_output = torch.ones_like(raw_density, requires_grad=False, device=raw_density.device)
             with torch.enable_grad():
+                means.requires_grad_(True)
+                raw_density, x, means_contract = self.predict_density(means, stds, rand=rand)
+                d_output = torch.ones_like(raw_density, requires_grad=False, device=raw_density.device)
                 raw_grad_density = torch.autograd.grad(
                     outputs=raw_density,
                     inputs=means,
