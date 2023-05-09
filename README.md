@@ -7,17 +7,16 @@ This work is based on [multinerf](https://github.com/google-research/multinerf),
 
 
 ## Results
-Current results:  
-
-https://user-images.githubusercontent.com/83005605/234030861-ee649921-2bd2-4ebd-8203-1192acad3bc3.mp4
+New results(5.9): 
 
 
 |             | bicycle | garden | stump | room  | counter | kitchen | bonsai |
 |:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:|:------:|
-|    PSNR     |  24.45  | 26.18  | 26.46 | 31.79 |  28.56  |  31.35  | 33.47  |
-|    SSIM     |  0.685  | 0.752  | 0.762 | 0.914 |  0.896  |  0.909  | 0.937  |
+|    PSNR     |  25.22  | 27.60  | 26.60 | 31.83 |  28.72  |  31.87  | 33.47  |
+|    SSIM     |  0.764  | 0.858  | 0.778 | 0.925 |  0.898  |  0.928  | 0.937  |
 
-The video is rendered at a downsample factor of 8 while the nerf model is trained in full resolution. Training speed is about 1.5x slower than paper(1.5 hours on 8 A6000).
+The model is trained with a downsample factor of 4 for outdoor scene and 2 for indoor scene(same as in paper).
+Training speed is about 1.5x slower than paper(1.5 hours on 8 A6000).
 
 This project is work-in-progress, and any advice will be appreciated.
 ## Install

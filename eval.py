@@ -258,7 +258,7 @@ def main(unused_argv):
             with utils.open_file(path_fn(f'metric_avg_{step}.txt'), 'w') as f:
                 for name in metrics[0]:
                     f.write(f'{name}: {results[name]}\n')
-                    accelerator.print(f'{name}: {results[name]}\n')
+                    accelerator.print(f'{name}: {results[name]}')
             accelerator.print(f'metrics_cc:')
             results_cc = {}
             for name in metrics_cc[0]:
@@ -269,7 +269,7 @@ def main(unused_argv):
             with utils.open_file(path_fn(f'metric_cc_avg_{step}.txt'), 'w') as f:
                 for name in metrics[0]:
                     f.write(f'{name}: {results_cc[name]}\n')
-                    accelerator.print(f'{name}: {results_cc[name]}\n')
+                    accelerator.print(f'{name}: {results_cc[name]}')
             if config.eval_save_ray_data:
                 for i, r, b in showcases:
                     rays = {k: v for k, v in r.items() if 'ray_' in k}
