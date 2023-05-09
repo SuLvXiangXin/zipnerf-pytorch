@@ -10,6 +10,7 @@ This work is based on [multinerf](https://github.com/google-research/multinerf),
 New results(5.9): 
 
 https://github-production-user-asset-6210df.s3.amazonaws.com/83005605/237086720-d9bb5a85-c9e7-4e9c-9b8b-622e3f7d2c77.mp4
+123131
 
 |             | bicycle | garden | stump | room  | counter | kitchen | bonsai |
 |:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:|:------:|
