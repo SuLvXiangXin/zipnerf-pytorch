@@ -12,6 +12,10 @@ New results(5.9):
 https://github.com/SuLvXiangXin/zipnerf-pytorch/assets/83005605/d9bb5a85-c9e7-4e9c-9b8b-622e3f7d2c77
 
 
+https://github.com/SuLvXiangXin/zipnerf-pytorch/assets/83005605/b91f5db3-c923-4753-b694-71697c93c349
+
+
+
 |             | bicycle | garden | stump | room  | counter | kitchen | bonsai |
 |:-----------:|:-------:|:------:|:-----:|:-----:|:-------:|:-------:|:------:|
 |    PSNR     |  25.22  | 27.60  | 26.60 | 31.83 |  28.72  |  31.87  | 33.47  |
