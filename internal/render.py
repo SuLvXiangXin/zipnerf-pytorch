@@ -1,3 +1,5 @@
+import os.path
+
 from internal import stepfun
 import torch
 import torch.nn.functional as F
@@ -87,7 +89,7 @@ def cylinder_to_gaussian(d, t0, t1, radius, diag):
     return lift_gaussian(d, t_mean, t_var, r_var, diag)
 
 
-def cast_rays(tdist, origins, directions, radii, rand=True, n=7, m=3, std_scale=0.35):
+def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, std_scale=0.35):
     """Cast rays (cone- or cylinder-shaped) and featurize sections of it.
 
   Args:
@@ -116,9 +118,10 @@ def cast_rays(tdist, origins, directions, radii, rand=True, n=7, m=3, std_scale=
     ], dim=-1)
     stds = std_scale * radii[..., None] * t
 
-    rand_vec = torch.randn_like(directions)
-    ortho1 = F.normalize(torch.cross(directions, rand_vec, dim=-1), dim=-1)
-    ortho2 = F.normalize(torch.cross(directions, ortho1, dim=-1), dim=-1)
+    # two basis in parallel to the image plane
+    rand_vec = torch.randn_like(cam_dirs)
+    ortho1 = F.normalize(torch.cross(cam_dirs, rand_vec, dim=-1), dim=-1)
+    ortho2 = F.normalize(torch.cross(cam_dirs, ortho1, dim=-1), dim=-1)
 
     # just use directions to be the third vector of the orthonormal basis,
     # while the cross section of cone is parallel to the image plane

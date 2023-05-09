@@ -37,7 +37,7 @@ def restore_checkpoint(
             raise ValueError(f'Matching checkpoint not found: {ckpt_path}')
     else:
         if not os.path.exists(ckpt_dir):
-            print('Found no checkpoint directory at %s' % ckpt_dir)
+            print('Warning: Found no checkpoint directory at %s, train from scratch.' % ckpt_dir)
             return 0
         if not os.path.isdir(ckpt_dir):
             ckpt_path = ckpt_dir

@@ -25,11 +25,23 @@ def l2_normalize(x):
     return torch.nn.functional.normalize(x, dim=-1, eps=torch.finfo(x.dtype).eps)
 
 
+def l2_normalize_np(x):
+    """Normalize x to unit length along last axis."""
+    return x / np.sqrt(np.maximum(np.sum(x ** 2, axis=-1, keepdims=True), np.finfo(x.dtype).eps))
+
+
 def compute_weighted_mae(weights, normals, normals_gt):
     """Compute weighted mean angular error, assuming normals are unit length."""
     one_eps = 1 - torch.finfo(weights.dtype).eps
     return (weights * torch.arccos(torch.clip((normals * normals_gt).sum(-1),
                                               -one_eps, one_eps))).sum() / weights.sum() * 180.0 / torch.pi
+
+
+def compute_weighted_mae_np(weights, normals, normals_gt):
+    """Compute weighted mean angular error, assuming normals are unit length."""
+    one_eps = 1 - np.finfo(weights.dtype).eps
+    return (weights * np.arccos(np.clip((normals * normals_gt).sum(-1),
+                                        -one_eps, one_eps))).sum() / weights.sum() * 180.0 / np.pi
 
 
 def generalized_binomial_coeff(a, k):
@@ -107,6 +119,7 @@ def generate_ide_fn(deg_view):
             mat[k, i] = sph_harm_coeff(l, m, k)
     mat = torch.from_numpy(mat).float()
     ml_array = torch.from_numpy(ml_array).float()
+
     def integrated_dir_enc_fn(xyz, kappa_inv):
         """Function returning integrated directional encoding (IDE).
 

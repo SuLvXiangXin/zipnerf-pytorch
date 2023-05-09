@@ -2,7 +2,7 @@ from internal import math
 from internal import utils
 import numpy as np
 import torch
-from torch.func import vmap, jacrev
+# from torch.func import vmap, jacrev
 
 
 def contract(x):
@@ -44,13 +44,12 @@ def contract_mean_jacobi(x):
     z = torch.where(x_mag_sq <= 1, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
 
     eye = torch.broadcast_to(torch.eye(3, device=x.device), z.shape[:-1] + z.shape[-1:] * 2)
-    jacobi = (2 * x_xT * (1 - x_mag_sqrt[..., None]) + (
-                2 * x_mag_sqrt[..., None] ** 3 - x_mag_sqrt[..., None] ** 2) * eye) / x_mag_sqrt[..., None] ** 4
+    jacobi = (2 * x_xT * (1 - x_mag_sqrt[..., None]) + (2 * x_mag_sqrt[..., None] ** 3 - x_mag_sqrt[..., None] ** 2) * eye) / x_mag_sqrt[..., None] ** 4
     jacobi = torch.where(mask[..., None], eye, jacobi)
     return z, jacobi
 
 
-@torch.compile
+# @torch.compile
 def contract_mean_std(x, std):
     eps = torch.finfo(x.dtype).eps
     # eps = 1e-3

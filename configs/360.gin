@@ -1,4 +1,4 @@
-Config.exp_name = 'test3'
+Config.exp_name = 'test'
 Config.dataset_loader = 'llff'
 Config.near = 0.2
 Config.far = 1e6

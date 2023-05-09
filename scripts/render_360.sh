@@ -1,11 +1,11 @@
 #!/bin/bash
 
 SCENE=bicycle
-EXPERIMENT=360_v2/"$SCENE"
+EXPERIMENT=360_v2_0508/"$SCENE"
 DATA_ROOT=/SSD_DISK/datasets/360_v2
 DATA_DIR="$DATA_ROOT"/"$SCENE"
 
-accelerate launch render.py \
+python render.py \
   --gin_configs=configs/360.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \

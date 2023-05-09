@@ -22,6 +22,36 @@ from torch.utils._pytree import tree_map
 configs.define_common_flags()
 
 
+def summarize_results(folder, scene_names, num_buckets):
+    metric_names = ['psnrs', 'ssims', 'lpips']
+    num_iters = 1000000
+    precisions = [3, 4, 4, 4]
+
+    results = []
+    for scene_name in scene_names:
+        test_preds_folder = os.path.join(folder, scene_name, 'test_preds')
+        values = []
+        for metric_name in metric_names:
+            filename = os.path.join(folder, scene_name, 'test_preds', f'{metric_name}_{num_iters}.txt')
+            with utils.open_file(filename) as f:
+                v = np.array([float(s) for s in f.readline().split(' ')])
+                values.append(np.mean(np.reshape(v, [-1, num_buckets]), 0))
+        results.append(np.concatenate(values))
+    avg_results = np.mean(np.array(results), 0)
+
+    psnr, ssim, lpips = np.mean(np.reshape(avg_results, [-1, num_buckets]), 1)
+
+    mse = np.exp(-0.1 * np.log(10.) * psnr)
+    dssim = np.sqrt(1 - ssim)
+    avg_avg = np.exp(np.mean(np.log(np.array([mse, dssim, lpips]))))
+
+    s = []
+    for i, v in enumerate(np.reshape(avg_results, [-1, num_buckets])):
+        s.append(' '.join([f'{s:0.{precisions[i]}f}' for s in v]))
+    s.append(f'{avg_avg:0.{precisions[-1]}f}')
+    return ' | '.join(s)
+
+
 def main(unused_argv):
     config = configs.load_config()
     config.exp_path = os.path.join('exp', config.exp_name)
@@ -97,20 +127,19 @@ def main(unused_argv):
                 accelerator,
                 batch, False, config)
 
-            rendering = tree_map(lambda x: x.detach().cpu().numpy() if x is not None else None, rendering)
-            batch = tree_map(lambda x: x.detach().cpu().numpy() if x is not None else None, batch)
             if not accelerator.is_local_main_process:  # Only record via host 0.
                 continue
 
             render_times.append((time.time() - eval_start_time))
             accelerator.print(f'Rendered in {render_times[-1]:0.3f}s')
 
-            # Cast to 64-bit to ensure high precision for color correction function.
-            gt_rgb = np.array(batch['rgb'], dtype=np.float64)
-            rendering['rgb'] = np.array(rendering['rgb'], dtype=np.float64)
-
             cc_start_time = time.time()
-            rendering['rgb_cc'] = cc_fun(rendering['rgb'], gt_rgb)
+            rendering['rgb_cc'] = cc_fun(rendering['rgb'], batch['rgb'])
+
+            rendering = tree_map(lambda x: x.detach().cpu().numpy() if x is not None else None, rendering)
+            batch = tree_map(lambda x: x.detach().cpu().numpy() if x is not None else None, batch)
+
+            gt_rgb = batch['rgb']
             accelerator.print(f'Color corrected in {(time.time() - cc_start_time):0.3f}s')
 
             if not config.eval_only_once and idx in showcase_indices:
@@ -145,11 +174,11 @@ def main(unused_argv):
 
                 if config.compute_normal_metrics:
                     weights = rendering['acc'] * batch['alphas']
-                    normalized_normals_gt = ref_utils.l2_normalize(batch['normals'])
+                    normalized_normals_gt = ref_utils.l2_normalize_np(batch['normals'])
                     for key, val in rendering.items():
                         if key.startswith('normals') and val is not None:
-                            normalized_normals = ref_utils.l2_normalize(val)
-                            metric[key + '_mae'] = ref_utils.compute_weighted_mae(
+                            normalized_normals = ref_utils.l2_normalize_np(val)
+                            metric[key + '_mae'] = ref_utils.compute_weighted_mae_np(
                                 weights, normalized_normals, normalized_normals_gt)
 
                 for m, v in metric.items():
@@ -219,17 +248,28 @@ def main(unused_argv):
             with utils.open_file(path_fn(f'render_times_{step}.txt'), 'w') as f:
                 f.write(' '.join([str(r) for r in render_times]))
             accelerator.print(f'metrics:')
+            results = {}
+            num_buckets = config.multiscale_levels if config.multiscale else 1
             for name in metrics[0]:
                 with utils.open_file(path_fn(f'metric_{name}_{step}.txt'), 'w') as f:
                     ms = [m[name] for m in metrics]
-                    f.write(' '.join([str(m) for m in ms]) + f'\nmean: {np.mean(ms)}')
-                    accelerator.print(f'\taverage {name} = {np.mean(ms):.4f}')
+                    f.write(' '.join([str(m) for m in ms]))
+                    results[name] = ' | '.join(list(map(str, np.mean(np.array(ms).reshape([-1, num_buckets]), 0).tolist())))
+            with utils.open_file(path_fn(f'metric_avg_{step}.txt'), 'w') as f:
+                for name in metrics[0]:
+                    f.write(f'{name}: {results[name]}\n')
+                    accelerator.print(f'{name}: {results[name]}\n')
             accelerator.print(f'metrics_cc:')
+            results_cc = {}
             for name in metrics_cc[0]:
                 with utils.open_file(path_fn(f'metric_cc_{name}_{step}.txt'), 'w') as f:
                     ms = [m[name] for m in metrics_cc]
-                    f.write(' '.join([str(m) for m in ms]) + f'\nmean: {np.mean(ms)}')
-                    accelerator.print(f'\taverage {name} = {np.mean(ms):.4f}')
+                    f.write(' '.join([str(m) for m in ms]))
+                    results_cc[name] = ' | '.join(list(map(str, np.mean(np.array(ms).reshape([-1, num_buckets]), 0).tolist())))
+            with utils.open_file(path_fn(f'metric_cc_avg_{step}.txt'), 'w') as f:
+                for name in metrics[0]:
+                    f.write(f'{name}: {results_cc[name]}\n')
+                    accelerator.print(f'{name}: {results_cc[name]}\n')
             if config.eval_save_ray_data:
                 for i, r, b in showcases:
                     rays = {k: v for k, v in r.items() if 'ray_' in k}

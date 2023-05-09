@@ -1,6 +1,5 @@
 import enum
 from internal import configs
-from internal import math
 from internal import stepfun
 from internal import utils
 import numpy as np
@@ -530,8 +529,7 @@ def pixels_to_rays(pix_x_int, pix_y_int, pixtocams,
     directions, dx, dy = directions_stacked
 
     origins = np.broadcast_to(camtoworlds[..., :3, -1], directions.shape)
-    norm = np.linalg.norm(directions, axis=-1, keepdims=True)
-    viewdirs = directions / norm
+    viewdirs = directions / np.linalg.norm(directions, axis=-1, keepdims=True)
 
     if pixtocam_ndc is None:
         # Distance from each unit-norm direction vector to its neighbors.

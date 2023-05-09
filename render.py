@@ -10,6 +10,7 @@ from internal import models
 from internal import train_utils
 from internal import checkpoints
 from internal import utils
+from internal import vis
 from matplotlib import cm
 import mediapy as media
 import torch
@@ -39,14 +40,14 @@ def create_videos(config, base_dir, out_dir, out_name, num_frames):
     shape = depth_frame.shape
     p = config.render_dist_percentile
     distance_limits = np.percentile(depth_frame.flatten(), [p, 100 - p])
-    lo, hi = [config.render_dist_curve_fn(x) for x in distance_limits]
+    # lo, hi = [config.render_dist_curve_fn(x) for x in distance_limits]
+    depth_curve_fn = lambda x: -np.log(x + np.finfo(np.float32).eps)
+    lo, hi = distance_limits
     print(f'Video shape is {shape[:2]}')
 
     for k in ['color', 'normals', 'acc', 'distance_mean', 'distance_median']:
         video_file = os.path.join(base_dir, f'{video_prefix}_{k}.mp4')
-        input_format = 'gray' if k == 'acc' else 'rgb'
         file_ext = 'png' if k in ['color', 'normals'] else 'tiff'
-        idx = 0
         file0 = os.path.join(out_dir, f'{k}_{idx_to_str(0)}.{file_ext}')
         if not utils.file_exists(file0):
             print(f'Images missing for tag {k}')
@@ -63,9 +64,11 @@ def create_videos(config, base_dir, out_dir, out_name, num_frames):
             if k in ['color', 'normals']:
                 img = img / 255.
             elif k.startswith('distance'):
-                img = config.render_dist_curve_fn(img)
-                img = np.clip((img - np.minimum(lo, hi)) / np.abs(hi - lo), 0, 1)
-                img = cm.get_cmap('turbo')(img)[..., :3]
+                # img = config.render_dist_curve_fn(img)
+                # img = np.clip((img - np.minimum(lo, hi)) / np.abs(hi - lo), 0, 1)
+                # img = cm.get_cmap('turbo')(img)[..., :3]
+
+                img = vis.visualize_cmap(img, np.ones_like(img), cm.get_cmap('turbo'), lo, hi, curve_fn=depth_curve_fn)
 
             frame = (np.clip(np.nan_to_num(img), 0., 1.) * 255.).astype(np.uint8)
             writer.append_data(frame)

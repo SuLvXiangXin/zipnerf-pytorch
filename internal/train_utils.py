@@ -130,7 +130,6 @@ def interlevel_loss(ray_history, config):
 
 def anti_interlevel_loss(ray_history, config):
     """Computes the interlevel loss defined in mip-NeRF 360."""
-    # Stop the gradient from the interlevel loss onto the NeRF MLP.
     last_ray_results = ray_history[-1]
     c = last_ray_results['sdist'].detach()
     w = last_ray_results['weights'].detach()
@@ -143,11 +142,11 @@ def anti_interlevel_loss(ray_history, config):
 
         # piecewise linear pdf to piecewise quadratic cdf
         area = 0.5 * (w_[..., 1:] + w_[..., :-1]) * (c_[..., 1:] - c_[..., :-1])
+
         cdf = torch.cat([torch.zeros_like(area[..., :1]), torch.cumsum(area, dim=-1)], dim=-1)
 
         # query piecewise quadratic interpolation
         cdf_interp = math.sorted_interp_quad(cp, c_, w_, cdf)
-
         # difference between adjacent interpolated values
         w_s = torch.diff(cdf_interp, dim=-1)
 

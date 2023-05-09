@@ -51,7 +51,6 @@ def main(unused_argv):
 
     # load dataset
     dataset = datasets.load_dataset('train', config.data_dir, config)
-    config.factor = 8  # for efficiency downsample 8x for test image while training
     test_dataset = datasets.load_dataset('test', config.data_dir, config)
     dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
                                              num_workers=8,

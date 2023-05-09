@@ -8,7 +8,9 @@ from internal import configs
 from internal import image as lib_image
 from internal import raw_utils
 from internal import utils
+from collections import defaultdict
 import numpy as np
+import cv2
 from PIL import Image
 import torch
 from tqdm import tqdm
@@ -20,38 +22,20 @@ sys.path.insert(0, 'internal/pycolmap/pycolmap')
 import pycolmap
 
 
-class Timing:
-    """
-    Timing environment
-    usage:
-    with Timing("message"):
-        your commands here
-    will print CUDA runtime in ms
-    """
-
-    def __init__(self, name):
-        self.name = name
-
-    def __enter__(self):
-        self.start = torch.cuda.Event(enable_timing=True)
-        self.end = torch.cuda.Event(enable_timing=True)
-        self.start.record()
-
-    def __exit__(self, type, value, traceback):
-        self.end.record()
-        torch.cuda.synchronize()
-        print(self.name, "elapsed", self.start.elapsed_time(self.end), "ms")
-
-
-def load_dataset(split, train_dir, config):
+def load_dataset(split, train_dir, config: configs.Config):
     """Loads a split of a dataset using the data_loader specified by `config`."""
-    dataset_dict = {
-        'blender': Blender,
-        'llff': LLFF,
-        'tat_nerfpp': TanksAndTemplesNerfPP,
-        'tat_fvs': TanksAndTemplesFVS,
-        'dtu': DTU,
-    }
+    if config.multiscale:
+        dataset_dict = {
+            'llff': MultiLLFF,
+        }
+    else:
+        dataset_dict = {
+            'blender': Blender,
+            'llff': LLFF,
+            'tat_nerfpp': TanksAndTemplesNerfPP,
+            'tat_fvs': TanksAndTemplesFVS,
+            'dtu': DTU,
+        }
     return dataset_dict[config.dataset_loader](split, train_dir, config)
 
 
@@ -250,7 +234,7 @@ class Dataset(torch.utils.data.Dataset):
         super().__init__()
 
         # Initialize attributes
-        self._patch_size = np.maximum(config.patch_size, 1)
+        self._patch_size = max(config.patch_size, 1)
         self._batch_size = config.batch_size // config.world_size
         if self._patch_size ** 2 > self._batch_size:
             raise ValueError(f'Patch size {self._patch_size}^2 too large for ' +
@@ -398,6 +382,14 @@ class Dataset(torch.utils.data.Dataset):
 
         # Slow path, do ray computation using numpy (on CPU).
         batch = camera_utils.cast_ray_batch(self.cameras, pixels, self.camtype)
+        batch['cam_dirs'] = -self.camtoworlds[ray_kwargs['cam_idx'][..., 0]][..., 2]
+
+        # import trimesh
+        # pts = batch['origins'][..., None, :] + batch['directions'][..., None, :] * np.linspace(0, 1, 5)[:, None]
+        # trimesh.Trimesh(vertices=pts.reshape(-1, 3)).export("test.ply", "ply")
+        #
+        # pts = batch['origins'][0, 0, None, :] - self.camtoworlds[cam_idx][:, 2] * np.linspace(0, 1, 100)[:, None]
+        # trimesh.Trimesh(vertices=pts.reshape(-1, 3)).export("test2.ply", "ply")
 
         if not self.render_path:
             batch['rgb'] = self.images[cam_idx, pix_y_int, pix_x_int]
@@ -702,7 +694,8 @@ class TanksAndTemplesNerfPP(Dataset):
             split_str = self.split.value
 
         basedir = os.path.join(self.data_dir, split_str)
-        # TODO: need to rewrite this to push different data on different rank
+
+        # TODO: need to rewrite this to put different data on different rank
         def load_files(dirname, load_fn, shape=None):
             files = [
                 os.path.join(basedir, dirname, f)
@@ -828,7 +821,7 @@ class DTU(Dataset):
 
         # Loop over all images.
         for i in range(1, n_images + 1):
-            if not (i-1 in local_indices):
+            if not (i - 1 in local_indices):
                 continue
 
             # Set light condition string accordingly.
@@ -895,9 +888,135 @@ class DTU(Dataset):
         self.pixtocams = pixtocams[indices]
 
 
+class Multicam(Dataset):
+    def __init__(self,
+                 split: str,
+                 data_dir: str,
+                 config: configs.Config):
+        super().__init__(split, data_dir, config)
+
+        self.multiscale_levels = config.multiscale_levels
+
+        images, camtoworlds, pixtocams, pixtocam_ndc = \
+            self.images, self.camtoworlds, self.pixtocams, self.pixtocam_ndc
+        self.heights, self.widths, self.focals, self.images, self.camtoworlds, self.pixtocams, self.lossmults = [], [], [], [], [], [], []
+        if pixtocam_ndc is not None:
+            self.pixtocam_ndc = []
+        else:
+            self.pixtocam_ndc = None
+
+        for i in range(self._n_examples):
+            for j in range(self.multiscale_levels):
+                self.heights.append(self.height // 2 ** j)
+                self.widths.append(self.width // 2 ** j)
+
+                self.pixtocams.append(pixtocams @ np.diag([self.height / self.heights[-1],
+                                                           self.width / self.widths[-1],
+                                                           1.]))
+                self.focals.append(1. / self.pixtocams[-1][0, 0])
+                if config.forward_facing:
+                    # Set the projective matrix defining the NDC transformation.
+                    self.pixtocam_ndc.append(pixtocams.reshape(3, 3))
+
+                self.camtoworlds.append(camtoworlds[i])
+                self.lossmults.append(2. ** j)
+                self.images.append(self.down2(images[i], (self.heights[-1], self.widths[-1])))
+        self.pixtocams = np.stack(self.pixtocams)
+        self.camtoworlds = np.stack(self.camtoworlds)
+        self.cameras = (self.pixtocams,
+                        self.camtoworlds,
+                        self.distortion_params,
+                        np.stack(self.pixtocam_ndc) if self.pixtocam_ndc is not None else None)
+        self._generate_rays()
+
+        if self.split == utils.DataSplit.TRAIN:
+            # Always flatten out the height x width dimensions
+            def flatten(x):
+                if x[0] is not None:
+                    x = [y.reshape([-1, y.shape[-1]]) for y in x]
+                    if self._batching == utils.BatchingMethod.ALL_IMAGES:
+                        # If global batching, also concatenate all data into one list
+                        x = np.concatenate(x, axis=0)
+                    return x
+                else:
+                    return None
+
+            self.batches = {k: flatten(v) for k, v in self.batches.items()}
+        self._n_examples = len(self.camtoworlds)
+
+        # Seed the queue with one batch to avoid race condition.
+        if self.split == utils.DataSplit.TRAIN:
+            self._next_fn = self._next_train
+        else:
+            self._next_fn = self._next_test
+
+    def _generate_rays(self):
+        if self.local_rank == 0:
+            tbar = tqdm(range(len(self.camtoworlds)), desc='Generating rays')
+        else:
+            tbar = range(len(self.camtoworlds))
+
+        self.batches = defaultdict(list)
+        for cam_idx in tbar:
+            pix_x_int, pix_y_int = camera_utils.pixel_coordinates(
+                self.widths[cam_idx], self.heights[cam_idx])
+            broadcast_scalar = lambda x: np.broadcast_to(x, pix_x_int.shape)[..., None]
+            ray_kwargs = {
+                'lossmult': broadcast_scalar(self.lossmults[cam_idx]),
+                'near': broadcast_scalar(self.near),
+                'far': broadcast_scalar(self.far),
+                'cam_idx': broadcast_scalar(cam_idx),
+            }
+
+            pixels = dict(pix_x_int=pix_x_int, pix_y_int=pix_y_int, **ray_kwargs)
+
+            batch = camera_utils.cast_ray_batch(self.cameras, pixels, self.camtype)
+            if not self.render_path:
+                batch['rgb'] = self.images[cam_idx]
+            if self._load_disps:
+                batch['disps'] = self.disp_images[cam_idx, pix_y_int, pix_x_int]
+            if self._load_normals:
+                batch['normals'] = self.normal_images[cam_idx, pix_y_int, pix_x_int]
+                batch['alphas'] = self.alphas[cam_idx, pix_y_int, pix_x_int]
+            for k, v in batch.items():
+                self.batches[k].append(v)
+
+    def _next_train(self, item):
+        """Sample next training batch (random rays)."""
+        # We assume all images in the dataset are the same resolution, so we can use
+        # the same width/height for sampling all pixels coordinates in the batch.
+        # Batch/patch sampling parameters.
+        num_patches = self._batch_size // self._patch_size ** 2
+        # Random camera indices.
+        if self._batching == utils.BatchingMethod.ALL_IMAGES:
+            ray_indices = np.random.randint(0, self.batches['origins'].shape[0], (num_patches, 1, 1))
+            batch = {k: v[ray_indices] if v is not None else None for k, v in self.batches.items()}
+        else:
+            image_index = np.random.randint(0, self._n_examples, ())
+            ray_indices = np.random.randint(0, self.batches['origins'][image_index].shape[0], (num_patches,))
+            batch = {k: v[image_index][ray_indices] if v is not None else None for k, v in self.batches.items()}
+        batch['cam_dirs'] = -self.camtoworlds[batch['cam_idx'][..., 0]][..., 2]
+        return {k: torch.from_numpy(v.copy()).float() if v is not None else None for k, v in batch.items()}
+
+    def _next_test(self, item):
+        """Sample next test batch (one full image)."""
+        batch = {k: v[item] for k, v in self.batches.items()}
+        batch['cam_dirs'] = -self.camtoworlds[batch['cam_idx'][..., 0]][..., 2]
+        return {k: torch.from_numpy(v.copy()).float() if v is not None else None for k, v in batch.items()}
+
+    @staticmethod
+    def down2(img, sh):
+        return cv2.resize(img, sh[::-1], interpolation=cv2.INTER_CUBIC)
+
+
+class MultiLLFF(Multicam, LLFF):
+    pass
+
+
 if __name__ == '__main__':
     from internal import configs
     import accelerate
+
     config = configs.Config()
     accelerator = accelerate.Accelerator()
     config.world_size = accelerator.num_processes

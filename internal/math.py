@@ -114,15 +114,18 @@ def sorted_interp_quad(x, xp, fpdf, fcdf):
     # The final `True` index in `mask` is the start of the matching interval.
     mask = x[..., None, :] >= xp[..., :, None]
 
-    def find_interval(x):
+    def find_interval(x, return_idx=False):
         # Grab the value where `mask` switches from True to False, and vice versa.
         # This approach takes advantage of the fact that `x` is sorted.
-        x0 = torch.max(torch.where(mask, x[..., None], x[..., :1, None]), -2).values
-        x1 = torch.min(torch.where(~mask, x[..., None], x[..., -1:, None]), -2).values
+        x0, x0_idx = torch.max(torch.where(mask, x[..., None], x[..., :1, None]), -2)
+        x1, x1_idx = torch.min(torch.where(~mask, x[..., None], x[..., -1:, None]), -2)
+        if return_idx:
+            return x0, x1, x0_idx, x1_idx
         return x0, x1
 
-    fpdf0, fpdf1 = find_interval(fpdf)
-    fcdf0, fcdf1 = find_interval(fcdf)
+    fcdf0, fcdf1, fcdf0_idx, fcdf1_idx = find_interval(fcdf, return_idx=True)
+    fpdf0 = fpdf.take_along_dim(fcdf0_idx, dim=-1)
+    fpdf1 = fpdf.take_along_dim(fcdf1_idx, dim=-1)
     xp0, xp1 = find_interval(xp)
 
     offset = torch.clip(torch.nan_to_num((x - xp0) / (xp1 - xp0), 0), 0, 1)

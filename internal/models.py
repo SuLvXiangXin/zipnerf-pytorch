@@ -201,6 +201,7 @@ class Model(nn.Module):
                 tdist,
                 batch['origins'],
                 batch['directions'],
+                batch['cam_dirs'],
                 batch['radii'],
                 rand,
                 n=sample_n,

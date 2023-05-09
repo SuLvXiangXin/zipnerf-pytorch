@@ -5,9 +5,10 @@ tests/__pycache__/
 .vscode/
 .idea/
 __MACOSX/
-scripts/concat_videos.py
 exp/
 data/
 test.py
+test2.py
 *.mp4
 bake.py
+scripts/bake*
