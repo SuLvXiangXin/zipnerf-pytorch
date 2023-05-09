@@ -35,7 +35,6 @@ done
 
 # indoor "Config.factor = 2"
 SCENE=("room" "counter" "kitchen" "bonsai")
-SCENE=("counter" "kitchen" "bonsai")
 len=${#SCENE[@]}
 for((i=0; i<$len; i++ ))
 do

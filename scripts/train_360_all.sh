@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # outdoor
-EXPERIMENT_PREFIX=360_v2_0508
+EXPERIMENT_PREFIX=360_v2
 SCENE=("bicycle" "garden" "stump" )
 DATA_ROOT=/SSD_DISK/datasets/360_v2
 
@@ -35,7 +35,6 @@ done
 
 # indoor "Config.factor = 2"
 SCENE=("room" "counter" "kitchen" "bonsai")
-SCENE=("counter" "kitchen" "bonsai")
 len=${#SCENE[@]}
 for((i=0; i<$len; i++ ))
 do
