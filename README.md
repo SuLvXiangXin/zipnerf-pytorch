@@ -5,6 +5,8 @@ An unofficial pytorch implementation of
 [https://arxiv.org/abs/2304.06706](https://arxiv.org/abs/2304.06706).
 This work is based on [multinerf](https://github.com/google-research/multinerf), so features in refnerf,rawnerf,mipnerf360 are also available.
 
+## News
+- Add extracting mesh; add logging,checkpointing system(5.22)
 
 ## Results
 New results(5.9): 
@@ -37,6 +39,10 @@ pip install -r requirements.txt
 
 # Install other extensions
 pip install ./gridencoder
+
+# Install nvdiffrast
+git clone https://github.com/NVlabs/nvdiffrast
+pip install ./nvdiffrast
 
 # Install a specific cuda version of torch_scatter 
 # see more detail at https://github.com/rusty1s/pytorch_scatter
@@ -117,6 +123,25 @@ accelerate launch eval.py \
 # alternative you can use an example evaluating script 
 bash script/eval_360.sh
 ```
+
+## Extract mesh
+Mesh results can be found in the directory `exp/${EXP_NAME}/mesh`
+```
+# more configuration can be found in internal/configs.py
+accelerate launch extract.py \
+    --gin_configs=configs/360.gin \
+    --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
+    --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
+    --gin_bindings="Config.factor = 4"
+    --gin_bindings="Config.mesh_radius = 1"  # smaller for more details e.g. 0.2 in bicycle scene
+    --gin_bindings="Config.isosurface_threshold = 20"  # empirical value
+    --gin_bindings="Config.mesh_resolution = 1024"  # mesh resolution for marching cube
+    --gin_bindings="Config.vertex_color = True"  # saving mesh with vertex color instead of atlas which is much slower but with more details.
+
+# alternative you can use an example evaluating script 
+bash script/extract_360.sh
+```
+
 ## OutOfMemory
 you can decrease the total batch size by 
 adding e.g.  `--gin_bindings="Config.batch_size = 8192" `, 

@@ -146,13 +146,14 @@ class Config:
     # extract mesh
     valid_weight_thresh: float = 0.05
     isosurface_threshold: float = 20
-    mesh_resolution: int = 512
+    mesh_resolution: int = 1024
     visibility_resolution: int = 512
     mesh_radius: float = 1
-    std_value: float = 0.0
+    std_value: float = 0.0  # std of the sampled points
     compute_visibility: bool = False
-    extract_visibility: bool = True
+    extract_visibility: bool = False
     decimate_target: int = -1
+    vertex_color: bool = True
 
 
 def define_common_flags():

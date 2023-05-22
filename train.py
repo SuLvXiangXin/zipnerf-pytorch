@@ -139,7 +139,6 @@ def main(unused_argv):
     with logging_redirect_tqdm():
         tbar = tqdm(range(1, num_steps + 1),
                     desc='Training', initial=init_step + 1,
-                    file=sys.stdout, leave=False,
                     disable=not accelerator.is_main_process)
         for step in tbar:
             try:

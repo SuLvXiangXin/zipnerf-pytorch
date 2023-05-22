@@ -53,9 +53,10 @@ def evaluate_density(model, accelerator: accelerate.Accelerator,
     z = torch.cat(z, dim=0)
     return z
 
+
 @torch.no_grad()
 def evaluate_color(model, accelerator: accelerate.Accelerator,
-                     points, config: configs.Config, std_value=0.0):
+                   points, config: configs.Config, std_value=0.0):
     """
     Evaluate a signed distance function (SDF) for a batch of points.
 
@@ -69,7 +70,7 @@ def evaluate_color(model, accelerator: accelerate.Accelerator,
     """
     z = []
     for _, pnts in enumerate(tqdm(torch.split(points, config.render_chunk_size, dim=0),
-                                  desc="Evaluating density", leave=False,
+                                  desc="Evaluating color",
                                   disable=not accelerator.is_main_process)):
         rays_per_host = pnts.shape[0] // accelerator.num_processes
         start, stop = accelerator.process_index * rays_per_host, \
@@ -77,16 +78,16 @@ def evaluate_color(model, accelerator: accelerate.Accelerator,
         chunk_means = pnts[start:stop]
         chunk_stds = torch.full_like(chunk_means[..., 0], std_value)
         chunk_viewdirs = torch.zeros_like(chunk_means)
-        ray_results = model.nerf_mlp(False, chunk_means[:, None], chunk_stds[:, None],
-                                     chunk_viewdirs, no_warp=True)[0]
-        rgb = ray_results['rgb']
+        ray_results = model.nerf_mlp(False, chunk_means[:, None, None], chunk_stds[:, None, None],
+                                     chunk_viewdirs, no_warp=True)
+        rgb = ray_results['rgb'][:, 0]
         rgb = accelerator.gather(rgb)
         z.append(rgb)
     z = torch.cat(z, dim=0)
     return z
 
 
-def clean_mesh(verts, faces, v_pct=1, min_f=8, min_d=5, repair=True, remesh=True, remesh_size=0.01):
+def clean_mesh(verts, faces, v_pct=1, min_f=8, min_d=5, repair=True, remesh=True, remesh_size=0.01, logger=None):
     # verts: [N, 3]
     # faces: [N, 3]
 
@@ -126,12 +127,13 @@ def clean_mesh(verts, faces, v_pct=1, min_f=8, min_d=5, repair=True, remesh=True
     verts = m.vertex_matrix()
     faces = m.face_matrix()
 
-    print(f'[INFO] mesh cleaning: {_ori_vert_shape} --> {verts.shape}, {_ori_face_shape} --> {faces.shape}')
+    if logger is not None:
+        logger.info(f'Mesh cleaning: {_ori_vert_shape} --> {verts.shape}, {_ori_face_shape} --> {faces.shape}')
 
     return verts, faces
 
 
-def decimate_mesh(verts, faces, target, backend='pymeshlab', remesh=False, optimalplacement=True):
+def decimate_mesh(verts, faces, target, backend='pymeshlab', remesh=False, optimalplacement=True, logger=None):
     # optimalplacement: default is True, but for flat mesh must turn False to prevent spike artifect.
 
     _ori_vert_shape = verts.shape
@@ -162,7 +164,8 @@ def decimate_mesh(verts, faces, target, backend='pymeshlab', remesh=False, optim
         verts = m.vertex_matrix()
         faces = m.face_matrix()
 
-    print(f'[INFO] mesh decimation: {_ori_vert_shape} --> {verts.shape}, {_ori_face_shape} --> {faces.shape}')
+    if logger is not None:
+        logger.info(f'Mesh decimation: {_ori_vert_shape} --> {verts.shape}, {_ori_face_shape} --> {faces.shape}')
 
     return verts, faces
 
@@ -253,7 +256,7 @@ def main(unused_argv):
         visibility_mask = torch.load(visibility_path, map_location=device)
 
     # Initialize variables
-    crop_n = 512
+    crop_n = min(512, config.mesh_resolution)
     N = config.mesh_resolution // crop_n
     grid_min = (-config.mesh_radius,) * 3
     grid_max = (config.mesh_radius,) * 3
@@ -283,7 +286,7 @@ def main(unused_argv):
     for i in range(N):
         for j in range(N):
             for k in range(N):
-                logger.info(f"Processing grid cell ({i}/{N}, {j}/{N}, {k}/{N})...")
+                logger.info(f"Process grid cell ({i + 1}/{N}, {j + 1}/{N}, {k + 1}/{N})...")
                 # Calculate grid cell boundaries
                 x_min, x_max = xs[i], xs[i + 1]
                 y_min, y_max = ys[j], ys[j + 1]
@@ -336,33 +339,45 @@ def main(unused_argv):
                         meshcrop = trimesh.Trimesh(verts, faces, normals)
                         meshes.append(meshcrop)
     # Save mesh
-    logger.info('Save mesh...')
+    logger.info('Concatenate mesh...')
     combined_mesh = trimesh.util.concatenate(meshes)
-    if accelerator.is_main_process:
-        combined_mesh.export(os.path.join(config.mesh_path, 'mesh_{}.ply'.format(config.mesh_radius)))
 
+    # from https://github.com/ashawkey/stable-dreamfusion/blob/main/nerf/renderer.py
     # clean
+    logger.info('Clean mesh...')
     vertices = combined_mesh.vertices.astype(np.float32)
-    triangles = combined_mesh.triangles.astype(np.int32)
-    vertices, triangles = clean_mesh(vertices, triangles, remesh=True, remesh_size=0.01)
+    faces = combined_mesh.faces.astype(np.int32)
+    vertices, faces = clean_mesh(vertices, faces, remesh=True, remesh_size=0.01, logger=logger)
 
     # decimation
-    if config.decimate_target > 0 and triangles.shape[0] > config.decimate_target:
-        vertices, triangles = decimate_mesh(vertices, triangles, config.decimate_target)
+    logger.info('Decimate mesh...')
+    if config.decimate_target > 0 and faces.shape[0] > config.decimate_target:
+        vertices, triangles = decimate_mesh(vertices, faces, config.decimate_target, logger=logger)
 
     v = torch.from_numpy(vertices).contiguous().float().to(device)
-    f = torch.from_numpy(triangles).contiguous().int().to(device)
+    f = torch.from_numpy(faces).contiguous().int().to(device)
 
-    # mesh = trimesh.Trimesh(vertices, triangles, process=False) # important, process=True leads to seg fault...
-    # mesh.export(os.path.join(config.mesh_path, f'mesh.ply'))
+    if config.vertex_color:
+        # batched inference to avoid OOM
+        logger.info('Evaluate mesh vertex color...')
+        rgbs = evaluate_color(module, accelerator, v,
+                              config, std_value=config.std_value)
+        rgbs = (rgbs * 255).detach().cpu().numpy().astype(np.uint8)
+
+        if accelerator.is_main_process:
+            logger.info('Export mesh (vertex color)...')
+            mesh = trimesh.Trimesh(vertices, faces, vertex_colors=rgbs,
+                                   process=False)  # important, process=True leads to seg fault...
+            mesh.export(os.path.join(config.mesh_path, 'mesh_{}.ply'.format(config.mesh_radius)))
+        logger.info('Finish extracting mesh.')
+        return
 
     def _export(v, f, h0=2048, w0=2048, ssaa=1, name=''):
+        logger.info('Export mesh (atlas)...')
         # v, f: torch Tensor
         device = v.device
         v_np = v.cpu().numpy()  # [N, 3]
         f_np = f.cpu().numpy()  # [M, 3]
-
-        print(f'[INFO] running xatlas to unwrap UVs for mesh: v={v_np.shape} f={f_np.shape}')
 
         # unwrap uvs
         import xatlas
@@ -370,6 +385,7 @@ def main(unused_argv):
         from sklearn.neighbors import NearestNeighbors
         from scipy.ndimage import binary_dilation, binary_erosion
 
+        logger.info(f'Running xatlas to unwrap UVs for mesh: v={v_np.shape} f={f_np.shape}')
         atlas = xatlas.Atlas()
         atlas.add_mesh(v_np, f_np)
         chart_options = xatlas.ChartOptions()
@@ -411,15 +427,9 @@ def main(unused_argv):
             xyzs = xyzs[mask]  # [M, 3]
 
             # batched inference to avoid OOM
-            all_feats = []
-            head = 0
-            while head < xyzs.shape[0]:
-                tail = min(head + config.render_chunk_size, xyzs.shape[0])
-                results_ = evaluate_color(xyzs[head:tail])
-                all_feats.append(results_['albedo'].float())
-                head += config.render_chunk_size
-
-            feats[mask] = torch.cat(all_feats, dim=0)
+            all_feats = evaluate_color(module, accelerator, xyzs,
+                                       config, std_value=config.std_value)
+            feats[mask] = all_feats
 
         feats = feats.view(h, w, -1)
         mask = mask.view(h, w)
@@ -458,19 +468,19 @@ def main(unused_argv):
         obj_file = os.path.join(config.mesh_path, f'{name}mesh.obj')
         mtl_file = os.path.join(config.mesh_path, f'{name}mesh.mtl')
 
-        print(f'[INFO] writing obj mesh to {obj_file}')
+        logger.info(f'writing obj mesh to {obj_file}')
         with open(obj_file, "w") as fp:
             fp.write(f'mtllib {name}mesh.mtl \n')
 
-            print(f'[INFO] writing vertices {v_np.shape}')
+            logger.info(f'writing vertices {v_np.shape}')
             for v in v_np:
                 fp.write(f'v {v[0]} {v[1]} {v[2]} \n')
 
-            print(f'[INFO] writing vertices texture coords {vt_np.shape}')
+            logger.info(f'writing vertices texture coords {vt_np.shape}')
             for v in vt_np:
                 fp.write(f'vt {v[0]} {1 - v[1]} \n')
 
-            print(f'[INFO] writing faces {f_np.shape}')
+            logger.info(f'writing faces {f_np.shape}')
             fp.write(f'usemtl mat0 \n')
             for i in range(len(f_np)):
                 fp.write(
@@ -486,7 +496,8 @@ def main(unused_argv):
             fp.write(f'Ns 0.000000 \n')
             fp.write(f'map_Kd {name}albedo.png \n')
 
-    _export(v, f)
+    # # could be extremely slow
+    # _export(v, f)
 
     logger.info('Finish extracting mesh.')
 

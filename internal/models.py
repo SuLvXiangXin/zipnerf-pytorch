@@ -577,7 +577,6 @@ class MLP(nn.Module):
                 else:
                     # Encode view directions.
                     dir_enc = self.dir_enc_fn(viewdirs, roughness)
-
                     dir_enc = torch.broadcast_to(
                         dir_enc[..., None, :],
                         bottleneck.shape[:-1] + (dir_enc.shape[-1],))

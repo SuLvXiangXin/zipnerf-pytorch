@@ -11,10 +11,13 @@ opencv_contrib_python
 opencv_python
 Pillow
 trimesh
+pymeshlab
+xatlas
 plyfile
 rawpy
 ninja
 scipy
 scikit-image
+scikit-learn
 tensorboardX
 tqdm
