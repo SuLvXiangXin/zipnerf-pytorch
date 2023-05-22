@@ -14,7 +14,6 @@ do
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
     --gin_bindings="Config.factor = 4" \
-    --gin_bindings="Config.render_chunk_size = 16384"
 done
 
 # indoor "Config.factor = 2"
@@ -29,5 +28,4 @@ do
       --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
       --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
       --gin_bindings="Config.factor = 2" \
-      --gin_bindings="Config.render_chunk_size = 4096"
 done
