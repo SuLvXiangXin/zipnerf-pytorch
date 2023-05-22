@@ -49,7 +49,7 @@ def contract_mean_jacobi(x):
     return z, jacobi
 
 
-# @torch.compile
+@torch.compile
 def contract_mean_std(x, std):
     eps = torch.finfo(x.dtype).eps
     # eps = 1e-3

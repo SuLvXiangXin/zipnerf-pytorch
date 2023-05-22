@@ -1,5 +1,7 @@
 import glob
+import logging
 import os
+import sys
 import time
 
 from absl import app
@@ -78,18 +80,29 @@ def create_videos(config, base_dir, out_dir, out_name, num_frames):
 def main(unused_argv):
     config = configs.load_config()
     config.exp_path = os.path.join('exp', config.exp_name)
+    config.checkpoint_dir = os.path.join(config.exp_path, 'checkpoints')
     config.render_dir = os.path.join(config.exp_path, 'render')
 
     accelerator = accelerate.Accelerator()
+    # setup logger
+    logging.basicConfig(
+        format="%(asctime)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        force=True,
+        handlers=[logging.StreamHandler(sys.stdout),
+                  logging.FileHandler(os.path.join(config.exp_path, 'log_render.txt'))],
+        level=logging.INFO,
+    )
+    sys.excepthook = utils.handle_exception
+    logger = accelerate.logging.get_logger(__name__)
+    logger.info(config)
+    logger.info(accelerator.state, main_process_only=False)
+
     config.world_size = accelerator.num_processes
-    config.local_rank = accelerator.local_process_index
-    utils.seed_everything(config.seed + accelerator.local_process_index)
+    config.global_rank = accelerator.process_index
+    accelerate.utils.set_seed(config.seed, device_specific=True)
     model = models.Model(config=config)
     model.eval()
-
-    step = checkpoints.restore_checkpoint(config.exp_path, model)
-    accelerator.print(f'Rendering checkpoint at step {step}.')
-    model.to(accelerator.device)
 
     dataset = datasets.load_dataset('test', config.data_dir, config)
     dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
@@ -103,11 +116,15 @@ def main(unused_argv):
     else:
         postprocess_fn = lambda z: z
 
+    model = accelerator.prepare(model)
+    step = checkpoints.restore_checkpoint(config.checkpoint_dir, accelerator, logger)
+
+    logger.info(f'Rendering checkpoint at step {step}.')
+
     out_name = 'path_renders' if config.render_path else 'test_preds'
     out_name = f'{out_name}_step_{step}'
     out_dir = os.path.join(config.render_dir, out_name)
-    if not utils.isdir(out_dir):
-        utils.makedirs(out_dir)
+    utils.makedirs(out_dir)
 
     path_fn = lambda x: os.path.join(out_dir, x)
 
@@ -120,26 +137,18 @@ def main(unused_argv):
         idx_str = idx_to_str(idx)
         curr_file = path_fn(f'color_{idx_str}.png')
         if utils.file_exists(curr_file):
-            accelerator.print(f'Image {idx + 1}/{dataset.size} already exists, skipping')
+            logger.info(f'Image {idx + 1}/{dataset.size} already exists, skipping')
             continue
         batch = next(dataiter)
         batch = tree_map(lambda x: x.to(accelerator.device) if x is not None else None, batch)
-        accelerator.print(f'Evaluating image {idx + 1}/{dataset.size}')
+        logger.info(f'Evaluating image {idx + 1}/{dataset.size}')
         eval_start_time = time.time()
-        rendering = models.render_image(
-            lambda rand, x: model(rand,
-                                  x,
-                                  train_frac=1.,
-                                  compute_extras=True,
-                                  sample_n=config.sample_n_test,
-                                  sample_m=config.sample_m_test,
-                                  ),
-            accelerator,
-            batch, False, config)
+        rendering = models.render_image(model, accelerator,
+                                        batch, False, 1, config)
 
-        accelerator.print(f'Rendered in {(time.time() - eval_start_time):0.3f}s')
+        logger.info(f'Rendered in {(time.time() - eval_start_time):0.3f}s')
 
-        if accelerator.is_local_main_process:  # Only record via host 0.
+        if accelerator.is_main_process:  # Only record via host 0.
             rendering['rgb'] = postprocess_fn(rendering['rgb'])
             rendering = tree_map(lambda x: x.detach().cpu().numpy() if x is not None else None, rendering)
             utils.save_img_u8(rendering['rgb'], path_fn(f'color_{idx_str}.png'))
@@ -152,11 +161,11 @@ def main(unused_argv):
                                path_fn(f'distance_median_{idx_str}.tiff'))
             utils.save_img_f32(rendering['acc'], path_fn(f'acc_{idx_str}.tiff'))
     num_files = len(glob.glob(path_fn('acc_*.tiff')))
-    if accelerator.is_local_main_process and num_files == dataset.size:
-        accelerator.print(f'All files found, creating videos).')
+    if accelerator.is_main_process and num_files == dataset.size:
+        logger.info(f'All files found, creating videos.')
         create_videos(config, config.render_dir, out_dir, out_name, dataset.size)
     accelerator.wait_for_everyone()
-
+    logger.info('Finish rendering.')
 
 if __name__ == '__main__':
     with gin.config_scope('eval'):  # Use the same scope as eval.py

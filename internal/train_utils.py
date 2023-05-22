@@ -182,21 +182,11 @@ def orientation_loss(batch, model, ray_history, config):
     return total_loss
 
 
-def hash_decay_loss(model, config):
-    params = []
-    idxs = []
-    loss_hash_decay = 0.
-    for name, param in sorted(model.named_parameters(), key=lambda x: x[0]):
-        if 'encoder' in name:
-            params.append(param)
-            idxs.append(getattr(model, name.split('.')[0]).encoder.idx)
-    for param, idx in zip(params, idxs):
-        loss_hash_decay += segment_coo(param ** 2,
-                                       idx,
-                                       torch.zeros(idx.max() + 1, param.shape[-1], device=param.device),
-                                       reduce='mean'
-                                       ).mean()
-    return config.hash_decay_mults * loss_hash_decay
+def hash_decay_loss(ray_history, config):
+    total_loss = 0.
+    for i, ray_results in enumerate(ray_history):
+        total_loss += config.hash_decay_mults * ray_results['loss_hash_decay']
+    return total_loss
 
 
 def predicted_normal_loss(model, ray_history, config):

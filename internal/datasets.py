@@ -247,7 +247,7 @@ class Dataset(torch.utils.data.Dataset):
         self._apply_bayer_mask = config.apply_bayer_mask
         self._render_spherical = False
 
-        self.local_rank = config.local_rank
+        self.global_rank = config.global_rank
         self.world_size = config.world_size
         self.split = utils.DataSplit(split)
         self.data_dir = data_dir
@@ -303,7 +303,7 @@ class Dataset(torch.utils.data.Dataset):
                         self.pixtocam_ndc)
 
         # Seed the queue with one batch to avoid race condition.
-        if self.split == utils.DataSplit.TRAIN:
+        if self.split == utils.DataSplit.TRAIN and not config.compute_visibility:
             self._next_fn = self._next_train
         else:
             self._next_fn = self._next_test
@@ -476,7 +476,7 @@ class Blender(Dataset):
 
         if self.split == utils.DataSplit.TRAIN:
             # load different training data on different rank
-            local_indices = [i for i in range(len(meta['frames'])) if (i + self.local_rank) % self.world_size == 0]
+            local_indices = [i for i in range(len(meta['frames'])) if (i + self.global_rank) % self.world_size == 0]
         else:
             local_indices = list(range(len(meta['frames'])))
 
@@ -623,12 +623,12 @@ class LLFF(Dataset):
         indices = split_indices[self.split]
         image_names = [image_names[i] for i in indices]
         poses = poses[indices]
-        if self.split == utils.DataSplit.TRAIN:
-            # load different training data on different rank
-            local_indices = [i for i in range(len(image_names)) if (i + self.local_rank) % self.world_size == 0]
-            image_names = [image_names[i] for i in local_indices]
-            poses = poses[local_indices]
-            indices = local_indices
+        # if self.split == utils.DataSplit.TRAIN:
+        #     # load different training data on different rank
+        #     local_indices = [i for i in range(len(image_names)) if (i + self.global_rank) % self.world_size == 0]
+        #     image_names = [image_names[i] for i in local_indices]
+        #     poses = poses[local_indices]
+        #     indices = local_indices
 
         raw_testscene = False
         if config.rawnerf_mode:
@@ -655,7 +655,7 @@ class LLFF(Dataset):
             colmap_to_image = dict(zip(colmap_files, image_files))
             image_paths = [os.path.join(image_dir, colmap_to_image[f])
                            for f in image_names]
-            images = [utils.load_img(x) for x in tqdm(image_paths)]
+            images = [utils.load_img(x) for x in tqdm(image_paths, desc='Loading images', leave=False)]
             images = np.stack(images, axis=0) / 255.
 
             # EXIF data is usually only present in the original JPEG images.
@@ -815,7 +815,7 @@ class DTU(Dataset):
 
         if self.split == utils.DataSplit.TRAIN:
             # load different training data on different rank
-            local_indices = [i for i in range(n_images) if (i + self.local_rank) % self.world_size == 0]
+            local_indices = [i for i in range(n_images) if (i + self.global_rank) % self.world_size == 0]
         else:
             local_indices = list(range(n_images))
 
@@ -951,8 +951,8 @@ class Multicam(Dataset):
             self._next_fn = self._next_test
 
     def _generate_rays(self):
-        if self.local_rank == 0:
-            tbar = tqdm(range(len(self.camtoworlds)), desc='Generating rays')
+        if self.global_rank == 0:
+            tbar = tqdm(range(len(self.camtoworlds)), desc='Generating rays', leave=False)
         else:
             tbar = range(len(self.camtoworlds))
 
@@ -1020,11 +1020,11 @@ if __name__ == '__main__':
     config = configs.Config()
     accelerator = accelerate.Accelerator()
     config.world_size = accelerator.num_processes
-    config.local_rank = accelerator.local_process_index
+    config.global_rank = accelerator.process_index
     config.factor = 8
     dataset = LLFF('test', '/SSD_DISK/datasets/360_v2/bicycle', config)
     print(len(dataset))
     for _ in tqdm(dataset):
         pass
     print('done')
-    # print(accelerator.local_process_index)
+    # print(accelerator.process_index)

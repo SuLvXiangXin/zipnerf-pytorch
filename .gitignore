@@ -11,5 +11,4 @@ assets/
 test.py
 test2.py
 *.mp4
-bake.py
-scripts/bake*
+scripts/train_360_debug.sh

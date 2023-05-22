@@ -59,6 +59,9 @@ class Config:
     max_steps: int = 25000  # The number of optimization steps.
     early_exit_steps: Optional[int] = None  # Early stopping, for debugging.
     checkpoint_every: int = 5000  # The number of steps to save a checkpoint.
+    resume_from_checkpoint: bool = True  # whether to resume from checkpoint.
+    checkpoints_total_limit: int = 3
+
     print_every: int = 100  # The number of steps between reports to tensorboard.
     train_render_every: int = 500  # Steps between test set renders when training
     data_loss_type: str = 'charb'  # What kind of loss to use ('mse' or 'charb').
@@ -141,11 +144,15 @@ class Config:
     sample_m_test: int = 19
 
     # extract mesh
-    valid_weight_thresh: float = 0.005
+    valid_weight_thresh: float = 0.05
+    isosurface_threshold: float = 20
     mesh_resolution: int = 512
-    mesh_radius: float = 0.2
-    refine_save_interval: int = 1
-    refine_iters: int = 0
+    visibility_resolution: int = 512
+    mesh_radius: float = 1
+    std_value: float = 0.0
+    compute_visibility: bool = False
+    extract_visibility: bool = True
+    decimate_target: int = -1
 
 
 def define_common_flags():

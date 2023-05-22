@@ -279,6 +279,17 @@ class Model(nn.Module):
                 rgb = ray_results['rgb']
                 rendering['ray_rgbs'] = (rgb.reshape((-1,) + rgb.shape[-2:]))[:n, :, :]
 
+            if self.training:
+                # Compute the hash decay loss for this level.
+                idx = mlp.encoder.idx
+                param = mlp.encoder.embeddings
+                loss_hash_decay = segment_coo(param ** 2,
+                                              idx,
+                                              torch.zeros(idx.max() + 1, param.shape[-1], device=param.device),
+                                              reduce='mean'
+                                              ).mean()
+                ray_results['loss_hash_decay'] = loss_hash_decay
+
             renderings.append(rendering)
             ray_results['sdist'] = sdist.clone()
             ray_results['weights'] = weights.clone()
@@ -358,7 +369,8 @@ class MLP(nn.Module):
 
             self.dir_enc_fn = dir_enc_fn
             dim_dir_enc = self.dir_enc_fn(torch.zeros(1, 3), None).shape[-1]
-        self.grid_num_levels = int(np.log(self.grid_disired_resolution/self.grid_base_resolution)/np.log(self.grid_level_interval)) + 1
+        self.grid_num_levels = int(
+            np.log(self.grid_disired_resolution / self.grid_base_resolution) / np.log(self.grid_level_interval)) + 1
         self.encoder = GridEncoder(input_dim=3,
                                    num_levels=self.grid_num_levels,
                                    level_dim=self.grid_level_dim,
@@ -372,7 +384,8 @@ class MLP(nn.Module):
             last_dim += self.encoder.num_levels
         self.density_layer = nn.Sequential(nn.Linear(last_dim, 64),
                                            nn.ReLU(),
-                                           nn.Linear(64, 1 if self.disable_rgb else self.bottleneck_width))  # Hardcoded to a single channel.
+                                           nn.Linear(64,
+                                                     1 if self.disable_rgb else self.bottleneck_width))  # Hardcoded to a single channel.
         last_dim = 1 if self.disable_rgb and not self.enable_pred_normals else self.bottleneck_width
         if self.enable_pred_normals:
             self.normal_layer = nn.Linear(last_dim, 3)
@@ -403,7 +416,8 @@ class MLP(nn.Module):
                 for i in range(self.net_depth_glo - 1):
                     self.register_module(f"lin_glo_{i}", nn.Linear(last_dim_glo, self.net_width_glo))
                     last_dim_glo = self.net_width_glo
-                self.register_module(f"lin_glo_{self.net_depth_glo - 1}", nn.Linear(last_dim_glo, self.bottleneck_width * 2))
+                self.register_module(f"lin_glo_{self.net_depth_glo - 1}",
+                                     nn.Linear(last_dim_glo, self.bottleneck_width * 2))
 
             input_dim_rgb = last_dim_rgb
             for i in range(self.net_depth_viewdirs):
@@ -450,7 +464,8 @@ class MLP(nn.Module):
                 viewdirs=None,
                 imageplane=None,
                 glo_vec=None,
-                exposure=None):
+                exposure=None,
+                no_warp=False):
         """Evaluate the MLP.
 
     Args:
@@ -476,13 +491,13 @@ class MLP(nn.Module):
       roughness: [..., 1], or None.
     """
         if self.disable_density_normals:
-            raw_density, x, means_contract = self.predict_density(means, stds, rand=rand)
+            raw_density, x, means_contract = self.predict_density(means, stds, rand=rand, no_warp=no_warp)
             raw_grad_density = None
             normals = None
         else:
             with torch.enable_grad():
                 means.requires_grad_(True)
-                raw_density, x, means_contract = self.predict_density(means, stds, rand=rand)
+                raw_density, x, means_contract = self.predict_density(means, stds, rand=rand, no_warp=no_warp)
                 d_output = torch.ones_like(raw_density, requires_grad=False, device=raw_density.device)
                 raw_grad_density = torch.autograd.grad(
                     outputs=raw_density,
@@ -629,12 +644,14 @@ class PropMLP(MLP):
 
 
 @torch.no_grad()
-def render_image(render_fn,
+def render_image(model,
                  accelerator: accelerate.Accelerator,
                  batch,
                  rand,
+                 train_frac,
                  config,
-                 verbose=True):
+                 verbose=True,
+                 return_weights=False):
     """Render all the pixels of an image (in test mode).
 
   Args:
@@ -649,16 +666,17 @@ def render_image(render_fn,
     disp: rendered disparity image.
     acc: rendered accumulated weights per pixel.
   """
+    model.eval()
+
     height, width = batch['origins'].shape[:2]
     num_rays = height * width
     batch = {k: v.reshape((num_rays, -1)) for k, v in batch.items() if v is not None}
 
-    local_rank = accelerator.local_process_index
+    global_rank = accelerator.process_index
     chunks = []
-    if accelerator.is_local_main_process and verbose:
-        idx0s = tqdm(range(0, num_rays, config.render_chunk_size), desc="Rendering chunk")
-    else:
-        idx0s = range(0, num_rays, config.render_chunk_size)
+    idx0s = tqdm(range(0, num_rays, config.render_chunk_size),
+                 desc="Rendering chunk", leave=False,
+                 disable=not (accelerator.is_main_process and verbose))
 
     for i_chunk, idx0 in enumerate(idx0s):
         chunk_batch = tree_map(lambda r: r[idx0:idx0 + config.render_chunk_size], batch)
@@ -671,16 +689,21 @@ def render_image(render_fn,
             padding = 0
         # After padding the number of chunk_rays is always divisible by host_count.
         rays_per_host = chunk_batch['origins'].shape[0] // accelerator.num_processes
-        start, stop = local_rank * rays_per_host, (local_rank + 1) * rays_per_host
+        start, stop = global_rank * rays_per_host, (global_rank + 1) * rays_per_host
         chunk_batch = tree_map(lambda r: r[start:stop], chunk_batch)
 
         with accelerator.autocast():
-            chunk_renderings, _ = render_fn(rand, chunk_batch)
+            chunk_renderings, ray_history = model(rand,
+                                                  chunk_batch,
+                                                  train_frac=train_frac,
+                                                  compute_extras=True,
+                                                  sample_n=config.sample_n_test,
+                                                  sample_m=config.sample_m_test)
 
+        gather = lambda v: accelerator.gather(v.contiguous())[:-padding] \
+            if padding > 0 else accelerator.gather(v.contiguous())
         # Unshard the renderings.
-        chunk_renderings = tree_map(
-            lambda v: accelerator.gather(v.contiguous())[:-padding]
-            if padding > 0 else accelerator.gather(v.contiguous()), chunk_renderings)
+        chunk_renderings = tree_map(gather, chunk_renderings)
 
         # Gather the final pass for 2D buffers and all passes for ray bundles.
         chunk_rendering = chunk_renderings[-1]
@@ -688,6 +711,9 @@ def render_image(render_fn,
             if k.startswith('ray_'):
                 chunk_rendering[k] = [r[k] for r in chunk_renderings]
 
+        if return_weights:
+            chunk_rendering['weights'] = gather(ray_history[-1]['weights'])
+            chunk_rendering['coord'] = gather(ray_history[-1]['coord'])
         chunks.append(chunk_rendering)
 
     # Concatenate all chunks within each leaf of a single pytree.
@@ -715,5 +741,5 @@ def render_image(render_fn,
         ray_idx = ray_idx[:config.vis_num_rays]
         for k in keys:
             rendering[k] = [r[ray_idx] for r in rendering[k]]
-
+    model.train()
     return rendering

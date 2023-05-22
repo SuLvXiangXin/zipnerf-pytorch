@@ -1,14 +1,16 @@
 numpy
-torch==2.0.0
+torch
 absl_py
 accelerate
 gin_config
 imageio
+imageio[ffmpeg]
 matplotlib
 mediapy
 opencv_contrib_python
 opencv_python
 Pillow
+trimesh
 plyfile
 rawpy
 ninja

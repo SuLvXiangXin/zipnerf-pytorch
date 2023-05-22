@@ -4,9 +4,10 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-MAX_H, MAX_W = 480, 320
+MAX_H, MAX_W = 160, 160
 exp_name = "360_v2_0508"
 keys = ["color", "distance_mean"]
+keys = ["color"]
 
 root = os.path.join("exp", exp_name)
 scenes = sorted(os.listdir(root))

@@ -1,4 +1,5 @@
 import enum
+import logging
 import os
 import torch
 import numpy as np
@@ -6,6 +7,8 @@ from PIL import ExifTags
 from PIL import Image
 import collections
 import random
+from internal import vis
+from matplotlib import cm
 
 
 class Timing:
@@ -31,17 +34,12 @@ class Timing:
         print(self.name, "elapsed", self.start.elapsed_time(self.end), "ms")
 
 
+def handle_exception(exc_type, exc_value, exc_traceback):
+    logging.error("Error!", exc_info=(exc_type, exc_value, exc_traceback))
+
+
 def nan_sum(x):
     return torch.isnan(x).sum()
-
-
-def seed_everything(seed):
-    random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
 
 
 def flatten_dict(d, parent_key='', sep='_'):
@@ -110,13 +108,11 @@ def load_exif(pth):
 
 def save_img_u8(img, pth):
     """Save an image (probably RGB) in [0, 1] to disk as a uint8 PNG."""
-    with open_file(pth, 'wb') as f:
-        Image.fromarray(
-            (np.clip(np.nan_to_num(img), 0., 1.) * 255.).astype(np.uint8)).save(
-            f, 'PNG')
+    Image.fromarray(
+        (np.clip(np.nan_to_num(img), 0., 1.) * 255.).astype(np.uint8)).save(
+        pth, 'PNG')
 
 
-def save_img_f32(depthmap, pth):
+def save_img_f32(depthmap, pth, p=0.5):
     """Save an image (probably a depthmap) to disk as a float32 TIFF."""
-    with open_file(pth, 'wb') as f:
-        Image.fromarray(np.nan_to_num(depthmap).astype(np.float32)).save(f, 'TIFF')
+    Image.fromarray(np.nan_to_num(depthmap).astype(np.float32)).save(pth, 'TIFF')
