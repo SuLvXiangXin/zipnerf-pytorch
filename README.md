@@ -138,7 +138,7 @@ accelerate launch extract.py \
     --gin_bindings="Config.mesh_resolution = 1024"  # mesh resolution for marching cube
     --gin_bindings="Config.vertex_color = True"  # saving mesh with vertex color instead of atlas which is much slower but with more details.
 
-# alternatively you can use an example evaluating script 
+# alternatively you can use an example script 
 bash script/extract_360.sh
 ```
 
