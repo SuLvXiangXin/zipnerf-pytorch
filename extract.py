@@ -496,8 +496,8 @@ def main(unused_argv):
             fp.write(f'Ns 0.000000 \n')
             fp.write(f'map_Kd {name}albedo.png \n')
 
-    # # could be extremely slow
-    # _export(v, f)
+    # could be extremely slow
+    _export(v, f)
 
     logger.info('Finish extracting mesh.')
 
