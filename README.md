@@ -86,7 +86,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
     --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
       --gin_bindings="Config.factor = 0" 
 
-# alternative you can use an example training script 
+# alternatively you can use an example training script 
 bash script/train_360.sh
 
 # metric, render image, etc can be viewed through tensorboard
@@ -106,7 +106,7 @@ accelerate launch render.py \
     --gin_bindings="Config.render_video_fps = 60" \
     --gin_bindings="Config.factor = 0"  
 
-# alternative you can use an example rendering script 
+# alternatively you can use an example rendering script 
 bash script/render_360.sh
 ```
 ## Evaluate
@@ -120,7 +120,7 @@ accelerate launch eval.py \
     --gin_bindings="Config.factor = 0"
 
 
-# alternative you can use an example evaluating script 
+# alternatively you can use an example evaluating script 
 bash script/eval_360.sh
 ```
 
@@ -138,7 +138,7 @@ accelerate launch extract.py \
     --gin_bindings="Config.mesh_resolution = 1024"  # mesh resolution for marching cube
     --gin_bindings="Config.vertex_color = True"  # saving mesh with vertex color instead of atlas which is much slower but with more details.
 
-# alternative you can use an example evaluating script 
+# alternatively you can use an example evaluating script 
 bash script/extract_360.sh
 ```
 
