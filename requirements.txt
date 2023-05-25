@@ -19,5 +19,6 @@ ninja
 scipy
 scikit-image
 scikit-learn
+tensorboard
 tensorboardX
 tqdm

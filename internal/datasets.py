@@ -547,8 +547,9 @@ class LLFF(Dataset):
         if utils.file_exists(colmap_dir):
             pose_data = NeRFSceneManager(colmap_dir).process()
         else:
-            # Attempt to load Blender/NGP format if COLMAP data not present.
-            pose_data = load_blender_posedata(self.data_dir)
+            # # Attempt to load Blender/NGP format if COLMAP data not present.
+            # pose_data = load_blender_posedata(self.data_dir)
+            raise ValueError('COLMAP data not found.')
         image_names, poses, pixtocam, distortion_params, camtype = pose_data
 
         # Previous NeRF results were generated with images sorted by filename,

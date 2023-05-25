@@ -31,7 +31,7 @@ This project is work-in-progress, and any advice will be appreciated.
 
 ```
 # Clone the repo.
-git clone https://https://github.com/SuLvXiangXin/zipnerf-pytorch.git
+git clone https://github.com/SuLvXiangXin/zipnerf-pytorch.git
 cd zipnerf-pytorch
 
 # Make a conda environment.
@@ -91,7 +91,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
       --gin_bindings="Config.factor = 0" 
 
 # alternatively you can use an example training script 
-bash script/train_360.sh
+bash scripts/train_360.sh
 
 # metric, render image, etc can be viewed through tensorboard
 tensorboard --logdir "exp/${EXP_NAME}"
@@ -111,7 +111,7 @@ accelerate launch render.py \
     --gin_bindings="Config.factor = 0"  
 
 # alternatively you can use an example rendering script 
-bash script/render_360.sh
+bash scripts/render_360.sh
 ```
 ## Evaluate
 Evaluating results can be found in the directory `exp/${EXP_NAME}/test_preds`
@@ -125,7 +125,7 @@ accelerate launch eval.py \
 
 
 # alternatively you can use an example evaluating script 
-bash script/eval_360.sh
+bash scripts/eval_360.sh
 ```
 
 ## Extract mesh
@@ -143,7 +143,7 @@ accelerate launch extract.py \
     --gin_bindings="Config.vertex_color = True"  # saving mesh with vertex color instead of atlas which is much slower but with more details.
 
 # alternatively you can use an example script 
-bash script/extract_360.sh
+bash scripts/extract_360.sh
 ```
 
 ## OutOfMemory
