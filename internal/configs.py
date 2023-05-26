@@ -48,7 +48,7 @@ class Config:
     exp_name: str = "test"  # experiment name
     data_dir: Optional[str] = "/SSD_DISK/datasets/360_v2/bicycle"  # Input data directory.
     vocab_tree_path: Optional[str] = None  # Path to vocab tree for COLMAP.
-    render_chunk_size: int = 16384  # Chunk size for whole-image renderings.
+    render_chunk_size: int = 65536  # Chunk size for whole-image renderings.
     num_showcase_images: int = 5  # The number of test-set images to showcase.
     deterministic_showcase: bool = True  # If True, showcase the same images.
     vis_num_rays: int = 16  # The number of rays to visualize.
@@ -138,22 +138,19 @@ class Config:
     eval_raw_affine_cc: bool = False
 
     zero_glo: bool = False
-    sample_n_train: int = 7
-    sample_m_train: int = 3
-    sample_n_test: int = 49
-    sample_m_test: int = 19
 
     # extract mesh
     valid_weight_thresh: float = 0.05
     isosurface_threshold: float = 20
-    mesh_resolution: int = 256
+    mesh_resolution: int = 512
     visibility_resolution: int = 512
-    mesh_radius: float = 1
+    mesh_radius: float = 1.0
     std_value: float = 0.0  # std of the sampled points
     compute_visibility: bool = False
-    extract_visibility: bool = False
+    extract_visibility: bool = True
     decimate_target: int = -1
-    vertex_color: bool = False
+    vertex_color: bool = True
+    vertex_projection: bool = False
 
 
 def define_common_flags():

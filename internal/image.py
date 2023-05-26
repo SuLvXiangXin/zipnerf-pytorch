@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from internal import math
 from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 import cv2
 
@@ -102,7 +103,7 @@ def color_correct(img, ref, num_iters=5, eps=0.5 / 255):
             warp.append(w)
         warp = torch.stack(warp, dim=-1)
         # Apply the warp to update img_mat.
-        img_mat = torch.clip(torch.matmul(a_mat, warp), 0, 1)
+        img_mat = torch.clip(math.matmul(a_mat, warp), 0, 1)
     corrected_img = torch.reshape(img_mat, img.shape)
     return corrected_img
 

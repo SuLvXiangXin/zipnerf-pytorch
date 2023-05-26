@@ -387,7 +387,7 @@ def resample_np(t, tp, vp, use_avg=False):
 
     acc = np.cumsum(vp, axis=-1)
     acc0 = np.concatenate([np.zeros(acc.shape[:-1] + (1,)), acc], axis=-1)
-    acc0_resampled = np.interp(t, tp, acc0)
+    acc0_resampled = np.vectorize(np.interp, signature='(n),(m),(m)->(n)')(t, tp, acc0)
     v = np.diff(acc0_resampled, axis=-1)
     return v
 

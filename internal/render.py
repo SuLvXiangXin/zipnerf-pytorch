@@ -1,6 +1,8 @@
 import os.path
 
 from internal import stepfun
+from internal import math
+from internal import utils
 import torch
 import torch.nn.functional as F
 
@@ -89,7 +91,7 @@ def cylinder_to_gaussian(d, t0, t1, radius, diag):
     return lift_gaussian(d, t_mean, t_var, r_var, diag)
 
 
-def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, std_scale=0.35):
+def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, std_scale=0.5, **kwargs):
     """Cast rays (cone- or cylinder-shaped) and featurize sections of it.
 
   Args:
@@ -103,20 +105,36 @@ def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, 
   Returns:
     a tuple of arrays of means and covariances.
   """
-    t0 = tdist[..., :-1]
-    t1 = tdist[..., 1:]
+    t0 = tdist[..., :-1, None]
+    t1 = tdist[..., 1:, None]
+    radii = radii[..., None]
 
-    j = torch.arange(n, device=tdist.device)
-    t = t0[..., None] + (t1[..., None] - t0[..., None]) * (j + 0.5) / n
-    deg = torch.broadcast_to(2 * torch.pi * m * j / n, t.shape)
+    t_m = (t0 + t1) / 2
+    t_d = (t1 - t0) / 2
+
+    j = torch.arange(6, device=tdist.device)
+    t = t0 + t_d / (t_d ** 2 + 3 * t_m ** 2) * (t1 ** 2 + 2 * t_m ** 2 + 3 / 7 ** 0.5 * (2 * j / 5 - 1) * (
+        (t_d ** 2 - t_m ** 2) ** 2 + 4 * t_m ** 4).sqrt())
+
+    deg = torch.pi / 3 * torch.tensor([0, 2, 4, 3, 5, 1], device=tdist.device, dtype=torch.float)
+    deg = torch.broadcast_to(deg, t.shape)
     if rand:
-        deg = deg + torch.rand_like(deg) * torch.pi * 2
+        # randomly rotate and flip
+        mask = torch.rand_like(t0[..., 0]) > 0.5
+        deg = deg + 2 * torch.pi * torch.rand_like(deg[..., 0])[..., None]
+        deg = torch.where(mask[..., None], deg, torch.pi * 5 / 3 - deg)
+    else:
+        # rotate 30 degree and flip every other pattern
+        mask = torch.arange(t.shape[-2], device=tdist.device) % 2 == 0
+        mask = torch.broadcast_to(mask, t.shape[:-1])
+        deg = torch.where(mask[..., None], deg, deg + torch.pi / 6)
+        deg = torch.where(mask[..., None], deg, torch.pi * 5 / 3 - deg)
     means = torch.stack([
-        radii[..., None] * t * torch.cos(deg) / 2,
-        radii[..., None] * t * torch.sin(deg) / 2,
+        radii * t * torch.cos(deg) / 2 ** 0.5,
+        radii * t * torch.sin(deg) / 2 ** 0.5,
         t
     ], dim=-1)
-    stds = std_scale * radii[..., None] * t
+    stds = std_scale * radii * t / 2 ** 0.5
 
     # two basis in parallel to the image plane
     rand_vec = torch.randn_like(cam_dirs)
@@ -126,7 +144,7 @@ def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, 
     # just use directions to be the third vector of the orthonormal basis,
     # while the cross section of cone is parallel to the image plane
     basis_matrix = torch.stack([ortho1, ortho2, directions], dim=-1)
-    means = torch.matmul(means, basis_matrix[..., None, :, :].transpose(-1, -2))
+    means = math.matmul(means, basis_matrix[..., None, :, :].transpose(-1, -2))
     means = means + origins[..., None, None, :]
     # import trimesh
     # trimesh.Trimesh(means.reshape(-1, 3).detach().cpu().numpy()).export("test.ply", "ply")

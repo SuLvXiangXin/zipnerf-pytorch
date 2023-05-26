@@ -35,7 +35,7 @@ class Model(nn.Module):
     anneal_slope: float = 10  # Higher = more rapid annealing.
     stop_level_grad: bool = True  # If True, don't backprop across levels.
     use_viewdirs: bool = True  # If True, use view directions as input.
-    raydist_fn = 'power_transformation'  # The curve used for ray dists.
+    raydist_fn = None  # The curve used for ray dists.
     single_jitter: bool = True  # If True, jitter whole rays instead of samples.
     dilation_multiplier: float = 0.5  # How much to dilate intervals relatively.
     dilation_bias: float = 0.0025  # How much to dilate intervals absolutely.
@@ -49,7 +49,7 @@ class Model(nn.Module):
     resample_padding: float = 0.0  # Dirichlet/alpha "padding" on the histogram.
     opaque_background: bool = False  # If true, make the background opaque.
     power_lambda: float = -1.5
-    std_scale: float = 0.35
+    std_scale: float = 0.5
     prop_desired_grid_size = [512, 2048]
 
     def __init__(self, config=None, **kwargs):
@@ -68,7 +68,6 @@ class Model(nn.Module):
         else:
             for i in range(self.num_levels - 1):
                 self.register_module(f'prop_mlp_{i}', PropMLP(grid_disired_resolution=self.prop_desired_grid_size[i]))
-        # self.prop_mlp = torch.compile(self.prop_mlp)
         if self.num_glo_features > 0 and not config.zero_glo:
             # Construct/grab GLO vectors for the cameras of each input ray.
             self.glo_vecs = nn.Embedding(self.num_glo_embeddings, self.num_glo_features)
@@ -87,8 +86,6 @@ class Model(nn.Module):
             train_frac,
             compute_extras,
             zero_glo=True,
-            sample_n=7,
-            sample_m=3,
     ):
         """The mip-NeRF Model.
 
@@ -98,8 +95,6 @@ class Model(nn.Module):
       train_frac: float in [0, 1], what fraction of training is complete.
       compute_extras: bool, if True, compute extra quantities besides color.
       zero_glo: bool, if True, when using GLO pass in vector of zeros.
-      sample_n: int, multisamples per frustum
-      sample_m: int, loops per frustum
 
     Returns:
       ret: list, [*(rgb, distance, acc)]
@@ -204,8 +199,6 @@ class Model(nn.Module):
                 batch['cam_dirs'],
                 batch['radii'],
                 rand,
-                n=sample_n,
-                m=sample_m,
                 std_scale=self.std_scale)
 
             # Push our Gaussians through one of our two MLPs.
@@ -695,9 +688,7 @@ def render_image(model,
             chunk_renderings, ray_history = model(rand,
                                                   chunk_batch,
                                                   train_frac=train_frac,
-                                                  compute_extras=True,
-                                                  sample_n=config.sample_n_test,
-                                                  sample_m=config.sample_m_test)
+                                                  compute_extras=True)
 
         gather = lambda v: accelerator.gather(v.contiguous())[:-padding] \
             if padding > 0 else accelerator.gather(v.contiguous())

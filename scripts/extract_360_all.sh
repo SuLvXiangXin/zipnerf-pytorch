@@ -8,7 +8,7 @@ DATA_ROOT=/SSD_DISK/datasets/360_v2
 len=${#SCENE[@]}
 for(( i=0; i<$len; i++ ))
 do
-  EXPERIMENT=360_v2_0508/"${SCENE[i]}"
+  EXPERIMENT=$EXPERIMENT_PREFIX/"${SCENE[i]}"
   DATA_DIR="$DATA_ROOT"/"${SCENE[i]}"
   accelerate launch bake.py --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \

@@ -1,6 +1,8 @@
 import enum
 import logging
 import os
+
+import cv2
 import torch
 import numpy as np
 from PIL import ExifTags
@@ -39,7 +41,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 
 def nan_sum(x):
-    return torch.isnan(x).sum()
+    return (torch.isnan(x) | torch.isinf(x)).sum()
 
 
 def flatten_dict(d, parent_key='', sep='_'):
@@ -87,8 +89,7 @@ def makedirs(pth):
 
 def load_img(pth):
     """Load an image and cast to float32."""
-    with open_file(pth, 'rb') as f:
-        image = np.array(Image.open(f), dtype=np.float32)
+    image = np.array(Image.open(pth), dtype=np.float32)
     return image
 
 

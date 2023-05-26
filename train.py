@@ -50,7 +50,7 @@ def main(unused_argv):
         force=True,
         handlers=[logging.StreamHandler(sys.stdout),
                   logging.FileHandler(os.path.join(config.exp_path, 'log_train.txt'))],
-        level=logging.DEBUG,
+        level=logging.INFO,
     )
     sys.excepthook = utils.handle_exception
     logger = accelerate.logging.get_logger(__name__)
@@ -68,7 +68,6 @@ def main(unused_argv):
     # setup model and optimizer
     model = models.Model(config=config)
     optimizer, lr_fn = train_utils.create_optimizer(config, model)
-    # model = torch.compile(model)  # not work yet
 
     # load dataset
     dataset = datasets.load_dataset('train', config.data_dir, config)
@@ -137,7 +136,7 @@ def main(unused_argv):
         num_steps = config.max_steps
 
     with logging_redirect_tqdm():
-        tbar = tqdm(range(1, num_steps + 1),
+        tbar = tqdm(range(init_step + 1, num_steps + 1),
                     desc='Training', initial=init_step + 1,
                     disable=not accelerator.is_main_process)
         for step in tbar:
@@ -169,8 +168,6 @@ def main(unused_argv):
                     batch,
                     train_frac=train_frac,
                     compute_extras=compute_extras,
-                    sample_n=config.sample_n_train,
-                    sample_m=config.sample_m_train,
                     zero_glo=False)
 
             losses = {}
@@ -223,7 +220,7 @@ def main(unused_argv):
             # only use host 0 to record results.
             if accelerator.is_main_process:
                 stats_buffer.append(stats)
-                if step == init_step or step % config.print_every == 0:
+                if step == init_step + 1 or step % config.print_every == 0:
                     elapsed_time = time.time() - train_start_time
                     steps_per_sec = config.print_every / elapsed_time
                     rays_per_sec = config.batch_size * steps_per_sec
@@ -234,7 +231,6 @@ def main(unused_argv):
                     approx_total_time = int(round(step * total_time / total_steps))
 
                     # Transpose and stack stats_buffer along axis 0.
-
                     fs = [utils.flatten_dict(s, sep='/') for s in stats_buffer]
                     stats_stacked = {k: np.stack([f[k] for f in fs]) for k in fs[0].keys()}
 
@@ -287,16 +283,15 @@ def main(unused_argv):
                     avg_loss = avg_stats['loss']
                     avg_psnr = avg_stats['psnr']
                     str_losses = {  # Grab each "losses_{x}" field and print it as "x[:4]".
-                        k[7:11]: (f'{v:0.5f}' if v >= 1e-4 and v < 10 else f'{v:0.1e}')
+                        k[7:11]: (f'{v:0.5f}' if 1e-4 <= v < 10 else f'{v:0.1e}')
                         for k, v in avg_stats.items()
                         if k.startswith('losses/')
                     }
-                    # with logging_redirect_tqdm():
-                    logger.info(f'{step:{precision}d}' + f'/{config.max_steps:d}: ' +
-                                f'loss={avg_loss:0.5f}, ' + f'psnr={avg_psnr:6.3f}, ' +
+                    logger.info(f'{step}' + f'/{config.max_steps:d}:' +
+                                f'loss={avg_loss:0.5f},' + f'psnr={avg_psnr:.3f},' +
                                 f'lr={learning_rate:0.2e} | ' +
-                                ', '.join([f'{k}={s}' for k, s in str_losses.items()]) +
-                                f', {rays_per_sec:0.0f} r/s')
+                                ','.join([f'{k}={s}' for k, s in str_losses.items()]) +
+                                f',{rays_per_sec:0.0f} r/s')
 
                     # Reset everything we are tracking between summarizations.
                     reset_stats = True

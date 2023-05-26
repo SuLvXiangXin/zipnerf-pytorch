@@ -31,7 +31,6 @@ def contract_tuple(x):
     return res, res
 
 
-@torch.compile
 def contract_mean_jacobi(x):
     eps = torch.finfo(x.dtype).eps
     # eps = 1e-3
@@ -49,7 +48,6 @@ def contract_mean_jacobi(x):
     return z, jacobi
 
 
-@torch.compile
 def contract_mean_std(x, std):
     eps = torch.finfo(x.dtype).eps
     # eps = 1e-3
@@ -58,9 +56,10 @@ def contract_mean_std(x, std):
     x_mag_sqrt = torch.sqrt(x_mag_sq)
     mask = x_mag_sq <= 1
     z = torch.where(mask, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
-    det = ((1 / x_mag_sq) * ((2 / x_mag_sqrt - 1 / x_mag_sq) ** 2))[..., 0]
+    # det_13 = ((1 / x_mag_sq) * ((2 / x_mag_sqrt - 1 / x_mag_sq) ** 2)) ** (1 / 3)
+    det_13 = (torch.pow(2 * x_mag_sqrt - 1, 1/3) / x_mag_sqrt) ** 2
 
-    std = torch.where(mask[..., 0], std, (det ** (1 / x.shape[-1])) * std)
+    std = torch.where(mask[..., 0], std, det_13[..., 0] * std)
     return z, std
 
 
@@ -159,7 +158,6 @@ def construct_ray_warps(fn, t_near, t_far, lam=None):
             'exp': torch.log,
             'sqrt': torch.square,
             'square': torch.sqrt,
-            'power_transformation': power_transformation,
         }
         fn_fwd = fn
         fn_inv = inv_mapping[fn.__name__]

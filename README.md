@@ -6,7 +6,8 @@ An unofficial pytorch implementation of
 This work is based on [multinerf](https://github.com/google-research/multinerf), so features in refnerf,rawnerf,mipnerf360 are also available.
 
 ## News
-- Add extracting mesh; add logging,checkpointing system(5.22)
+- (5.22) Add extracting mesh; add logging,checkpointing system
+- (5.26) Implement the latest version of ZipNeRF [https://arxiv.org/abs/2304.06706](https://arxiv.org/abs/2304.06706).
 
 ## Results
 New results(5.9): 
@@ -55,11 +56,19 @@ pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.0+${CUDA}.html
 ```
 
 ## Dataset
-Only [mipnerf360 data](http://storage.googleapis.com/gresearch/refraw360/360_v2.zip) is tested
+[mipnerf360](http://storage.googleapis.com/gresearch/refraw360/360_v2.zip)
+
+[refnerf](https://storage.googleapis.com/gresearch/refraw360/ref.zip)
+
+[nerf_synthetic](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1)
+
+[nerf_llff_data](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1)
 
 ```
 mkdir data
 cd data
+
+# e.g. mipnerf360 data
 wget http://storage.googleapis.com/gresearch/refraw360/360_v2.zip
 unzip 360_v2.zip
 ```
@@ -81,14 +90,14 @@ accelerate launch train.py \
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
-    --gin_bindings="Config.factor = 0"
+    --gin_bindings="Config.factor = 4"
 
 # or you can also run without accelerate (without DDP)
 CUDA_VISIBLE_DEVICES=0 python train.py \
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
-      --gin_bindings="Config.factor = 0" 
+      --gin_bindings="Config.factor = 4" 
 
 # alternatively you can use an example training script 
 bash scripts/train_360.sh
@@ -108,7 +117,7 @@ accelerate launch render.py \
     --gin_bindings="Config.render_path = True" \
     --gin_bindings="Config.render_path_frames = 480" \
     --gin_bindings="Config.render_video_fps = 60" \
-    --gin_bindings="Config.factor = 0"  
+    --gin_bindings="Config.factor = 4"  
 
 # alternatively you can use an example rendering script 
 bash scripts/render_360.sh
@@ -121,7 +130,7 @@ accelerate launch eval.py \
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
-    --gin_bindings="Config.factor = 0"
+    --gin_bindings="Config.factor = 4"
 
 
 # alternatively you can use an example evaluating script 
@@ -161,7 +170,7 @@ bash scripts/local_colmap_and_resize.sh ${DATA_DIR}
 ```
 
 ## TODO
-- [ ] Add MultiScale training and testing
+- [x] Add MultiScale training and testing
 
 ## Citation
 ```

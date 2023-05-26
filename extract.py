@@ -90,7 +90,7 @@ def evaluate_color(model, accelerator: accelerate.Accelerator,
 def clean_mesh(verts, faces, v_pct=1, min_f=8, min_d=5, repair=True, remesh=True, remesh_size=0.01, logger=None):
     # verts: [N, 3]
     # faces: [N, 3]
-
+    tbar = tqdm(total=9, desc='Clean mesh', leave=False, disable=logger is None)
     _ori_vert_shape = verts.shape
     _ori_face_shape = faces.shape
 
@@ -99,28 +99,50 @@ def clean_mesh(verts, faces, v_pct=1, min_f=8, min_d=5, repair=True, remesh=True
     ms.add_mesh(m, 'mesh')  # will copy!
 
     # filters
+    tbar.set_description('Remove unreferenced vertices')
     ms.meshing_remove_unreferenced_vertices()  # verts not refed by any faces
+    tbar.update()
 
     if v_pct > 0:
+        tbar.set_description('Remove unreferenced vertices')
         ms.meshing_merge_close_vertices(threshold=pml.Percentage(v_pct))  # 1/10000 of bounding box diagonal
+    tbar.update()
 
+    tbar.set_description('Remove duplicate faces')
     ms.meshing_remove_duplicate_faces()  # faces defined by the same verts
+    tbar.update()
+
+    tbar.set_description('Remove null faces')
     ms.meshing_remove_null_faces()  # faces with area == 0
+    tbar.update()
 
     if min_d > 0:
+        tbar.set_description('Remove connected component by diameter')
         ms.meshing_remove_connected_component_by_diameter(mincomponentdiag=pml.Percentage(min_d))
+    tbar.update()
 
     if min_f > 0:
+        tbar.set_description('Remove connected component by face number')
         ms.meshing_remove_connected_component_by_face_number(mincomponentsize=min_f)
+    tbar.update()
 
     if repair:
+        # tbar.set_description('Remove t vertices')
         # ms.meshing_remove_t_vertices(method=0, threshold=40, repeat=True)
+        tbar.set_description('Repair non manifold edges')
         ms.meshing_repair_non_manifold_edges(method=0)
+        tbar.update()
+        tbar.set_description('Repair non manifold vertices')
         ms.meshing_repair_non_manifold_vertices(vertdispratio=0)
-
+        tbar.update()
+    else:
+        tbar.update(2)
     if remesh:
+        # tbar.set_description('Coord taubin smoothing')
         # ms.apply_coord_taubin_smoothing()
+        tbar.set_description('Isotropic explicit remeshing')
         ms.meshing_isotropic_explicit_remeshing(iterations=3, targetlen=pml.AbsoluteValue(remesh_size))
+    tbar.update()
 
     # extract mesh
     m = ms.current_mesh()
@@ -246,8 +268,8 @@ def main(unused_argv):
                                                       align_corners=True)
                 out.sum().backward()
             tbar.set_postfix({"visibility_mask": (visibility_mask.grad > 0.0001).float().mean().item()})
-            if index == 10:
-                break
+            # if index == 10:
+            #     break
         visibility_mask = (visibility_mask.grad > 0.0001).float()
         if accelerator.is_main_process:
             torch.save(visibility_mask.detach().cpu(), visibility_path)
@@ -311,33 +333,34 @@ def main(unused_argv):
 
                 z = pts_density.detach().cpu().numpy()
 
-                if accelerator.is_main_process:
-                    # Skip if no surface found
-                    valid_z = z.reshape(crop_n, crop_n, crop_n)[current_mask]
-                    if valid_z.shape[0] <= 0 or (
-                            np.min(valid_z) > config.isosurface_threshold or np.max(
-                        valid_z) < config.isosurface_threshold
-                    ):
-                        continue
+                # Skip if no surface found
+                valid_z = z.reshape(crop_n, crop_n, crop_n)[current_mask]
+                if valid_z.shape[0] <= 0 or (
+                        np.min(valid_z) > config.isosurface_threshold or np.max(
+                    valid_z) < config.isosurface_threshold
+                ):
+                    continue
 
-                    if not (np.min(z) > config.isosurface_threshold or np.max(z) < config.isosurface_threshold):
-                        # Extract mesh
-                        logger.info('Extract mesh...')
-                        z = z.astype(np.float32)
-                        verts, faces, normals, _ = measure.marching_cubes(
-                            volume=-z.reshape(crop_n, crop_n, crop_n),
-                            level=-config.isosurface_threshold,
-                            spacing=(
-                                (x_max - x_min) / (crop_n - 1),
-                                (y_max - y_min) / (crop_n - 1),
-                                (z_max - z_min) / (crop_n - 1),
-                            ),
-                            mask=current_mask,
-                        )
-                        verts = verts + np.array([x_min, y_min, z_min])
+                if not (np.min(z) > config.isosurface_threshold or np.max(z) < config.isosurface_threshold):
+                    # Extract mesh
+                    logger.info('Extract mesh...')
+                    z = z.astype(np.float32)
+                    verts, faces, _, _ = measure.marching_cubes(
+                        volume=-z.reshape(crop_n, crop_n, crop_n),
+                        level=-config.isosurface_threshold,
+                        spacing=(
+                            (x_max - x_min) / (crop_n - 1),
+                            (y_max - y_min) / (crop_n - 1),
+                            (z_max - z_min) / (crop_n - 1),
+                        ),
+                        mask=current_mask,
+                    )
+                    verts = verts + np.array([x_min, y_min, z_min])
 
-                        meshcrop = trimesh.Trimesh(verts, faces, normals)
-                        meshes.append(meshcrop)
+                    meshcrop = trimesh.Trimesh(verts, faces)
+                    logger.info('Extract vertices: {}, faces: {}'.format(meshcrop.vertices.shape[0],
+                                                                         meshcrop.faces.shape[0]))
+                    meshes.append(meshcrop)
     # Save mesh
     logger.info('Concatenate mesh...')
     combined_mesh = trimesh.util.concatenate(meshes)
@@ -347,7 +370,7 @@ def main(unused_argv):
     logger.info('Clean mesh...')
     vertices = combined_mesh.vertices.astype(np.float32)
     faces = combined_mesh.faces.astype(np.int32)
-    vertices, faces = clean_mesh(vertices, faces, remesh=True, remesh_size=0.01, logger=logger)
+    vertices, faces = clean_mesh(vertices, faces, remesh=False, remesh_size=0.01, logger=logger)
 
     # decimation
     logger.info('Decimate mesh...')
@@ -360,8 +383,11 @@ def main(unused_argv):
     if config.vertex_color:
         # batched inference to avoid OOM
         logger.info('Evaluate mesh vertex color...')
-        rgbs = evaluate_color(module, accelerator, v,
-                              config, std_value=config.std_value)
+        if config.vertex_projection:
+            raise NotImplementedError
+        else:
+            rgbs = evaluate_color(module, accelerator, v,
+                                  config, std_value=config.std_value)
         rgbs = (rgbs * 255).detach().cpu().numpy().astype(np.uint8)
 
         if accelerator.is_main_process:
