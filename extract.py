@@ -42,6 +42,12 @@ def evaluate_density(model, accelerator: accelerate.Accelerator,
     for _, pnts in enumerate(tqdm(torch.split(points, config.render_chunk_size, dim=0),
                                   desc="Evaluating density", leave=False,
                                   disable=not accelerator.is_main_process)):
+        rays_remaining = pnts.shape[0] % accelerator.num_processes
+        if rays_remaining != 0:
+            padding = accelerator.num_processes - rays_remaining
+            pnts = torch.cat([pnts, torch.zeros_like(pnts[-padding:])], dim=0)
+        else:
+            padding = 0
         rays_per_host = pnts.shape[0] // accelerator.num_processes
         start, stop = accelerator.process_index * rays_per_host, \
                       (accelerator.process_index + 1) * rays_per_host
@@ -50,6 +56,8 @@ def evaluate_density(model, accelerator: accelerate.Accelerator,
         raw_density = model.nerf_mlp.predict_density(chunk_means[:, None], chunk_stds[:, None], no_warp=True)[0]
         density = F.softplus(raw_density + model.nerf_mlp.density_bias)
         density = accelerator.gather(density)
+        if padding > 0:
+            density = density[: -padding]
         z.append(density)
     z = torch.cat(z, dim=0)
     return z
@@ -76,6 +84,7 @@ def evaluate_color(model, accelerator: accelerate.Accelerator,
         rays_remaining = pnts.shape[0] % accelerator.num_processes
         if rays_remaining != 0:
             padding = accelerator.num_processes - rays_remaining
+            pnts = torch.cat([pnts, torch.zeros_like(pnts[-padding:])], dim=0)
         else:
             padding = 0
         rays_per_host = pnts.shape[0] // accelerator.num_processes
@@ -97,7 +106,7 @@ def evaluate_color(model, accelerator: accelerate.Accelerator,
 
 
 @torch.no_grad()
-def evaluate_color_projection(model, accelerator, vertices, faces, config: configs.Config):
+def evaluate_color_projection(model, accelerator: accelerate.Accelerator, vertices, faces, config: configs.Config):
     normals = auto_normals(vertices, faces.long())
     viewdirs = -normals
     origins = vertices - 0.005 * viewdirs
@@ -108,14 +117,16 @@ def evaluate_color_projection(model, accelerator, vertices, faces, config: confi
     for i in tqdm(range(0, origins.shape[0], chunk),
                   desc="Evaluating color projection",
                   disable=not accelerator.is_main_process):
-        rays_remaining = chunk % accelerator.num_processes
+        cur_chunk = min(chunk, origins.shape[0] - i)
+        rays_remaining = cur_chunk % accelerator.num_processes
         if rays_remaining != 0:
             padding = accelerator.num_processes - rays_remaining
+            # raise
         else:
             padding = 0
-        rays_per_host = chunk // accelerator.num_processes
-        start, stop = i + accelerator.process_index * rays_per_host, \
-                      i + (accelerator.process_index + 1) * rays_per_host
+        rays_per_host = (cur_chunk + accelerator.num_processes - 1) // accelerator.num_processes
+        start = i + accelerator.process_index * rays_per_host
+        stop = start + rays_per_host
 
         batch = {
             'origins': origins[start:stop],
@@ -123,10 +134,10 @@ def evaluate_color_projection(model, accelerator, vertices, faces, config: confi
             'viewdirs': viewdirs[start:stop],
             'cam_dirs': viewdirs[start:stop],
             'radii': torch.full_like(origins[start:stop, ..., :1], 0.000723),
-            'imageplane': None,
             'near': torch.full_like(origins[start:stop, ..., :1], 0),
             'far': torch.full_like(origins[start:stop, ..., :1], 0.01),
         }
+        batch = accelerator.pad_across_processes(batch)
         with accelerator.autocast():
             renderings, ray_history = model(
                 False,
@@ -135,9 +146,12 @@ def evaluate_color_projection(model, accelerator, vertices, faces, config: confi
                 train_frac=1)
         rgb = renderings[-1]['rgb']
         acc = renderings[-1]['acc']
+
         rgb /= acc.clamp_min(1e-5)[..., None]
         rgb = rgb.clamp(0, 1)
+
         rgb = accelerator.gather(rgb)
+        rgb[torch.isnan(rgb) | torch.isinf(rgb)] = 1
         if padding > 0:
             rgb = rgb[: -padding]
         vc.append(rgb)
@@ -169,10 +183,10 @@ def auto_normals(verts, faces):
     return v_nrm
 
 
-def clean_mesh(verts, faces, v_pct=1, min_f=8, min_d=5, repair=True, remesh=True, remesh_size=0.01, logger=None):
+def clean_mesh(verts, faces, v_pct=1, min_f=8, min_d=5, repair=True, remesh=True, remesh_size=0.01, logger=None, main_process=True):
     # verts: [N, 3]
     # faces: [N, 3]
-    tbar = tqdm(total=9, desc='Clean mesh', leave=False, disable=logger is None)
+    tbar = tqdm(total=9, desc='Clean mesh', leave=False, disable=not main_process)
     _ori_vert_shape = verts.shape
     _ori_face_shape = faces.shape
 
@@ -453,7 +467,9 @@ def main(unused_argv):
     logger.info('Clean mesh...')
     vertices = combined_mesh.vertices.astype(np.float32)
     faces = combined_mesh.faces.astype(np.int32)
-    vertices, faces = clean_mesh(vertices, faces, remesh=False, remesh_size=0.01, logger=logger)
+    vertices, faces = clean_mesh(vertices, faces,
+                                 remesh=False, remesh_size=0.01,
+                                 logger=logger, main_process=accelerator.is_main_process)
 
     # decimation
     if config.decimate_target > 0 and faces.shape[0] > config.decimate_target:
@@ -474,10 +490,10 @@ def main(unused_argv):
             rgbs = evaluate_color(module, accelerator, v,
                                   config, std_value=config.std_value)
         rgbs = (rgbs * 255).detach().cpu().numpy().astype(np.uint8)
-
         if accelerator.is_main_process:
             logger.info('Export mesh (vertex color)...')
-            mesh = trimesh.Trimesh(vertices, faces, vertex_colors=rgbs,
+            mesh = trimesh.Trimesh(vertices, faces,
+                                   vertex_colors=rgbs,
                                    process=False)  # important, process=True leads to seg fault...
             mesh.export(os.path.join(config.mesh_path, 'mesh_{}.ply'.format(config.mesh_radius)))
         logger.info('Finish extracting mesh.')
