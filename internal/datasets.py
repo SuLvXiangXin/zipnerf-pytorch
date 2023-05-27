@@ -745,7 +745,6 @@ class TanksAndTemplesFVS(Dataset):
         basedir = os.path.join(basedir, sizes[config.factor])
         open_fn = lambda f: utils.open_file(os.path.join(basedir, f), 'rb')
 
-        # TODO: need to rewrite this to push different data on different rank
         files = [f for f in sorted(utils.listdir(basedir)) if f.startswith('im_')]
         if render_only:
             files = files[:1]
@@ -809,17 +808,8 @@ class DTU(Dataset):
         # Find out whether the particular scan has 49 or 65 images.
         n_images = len(utils.listdir(self.data_dir)) // 8
 
-        if self.split == utils.DataSplit.TRAIN:
-            # load different training data on different rank
-            local_indices = [i for i in range(n_images) if (i + self.global_rank) % self.world_size == 0]
-        else:
-            local_indices = list(range(n_images))
-
         # Loop over all images.
         for i in range(1, n_images + 1):
-            if not (i - 1 in local_indices):
-                continue
-
             # Set light condition string accordingly.
             if config.dtu_light_cond < 7:
                 light_str = f'{config.dtu_light_cond}_r' + ('5000'

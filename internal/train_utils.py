@@ -189,6 +189,14 @@ def hash_decay_loss(ray_history, config):
     return total_loss
 
 
+def opacity_loss(renderings, config):
+    total_loss = 0.
+    for i, rendering in enumerate(renderings):
+        o = rendering['acc']
+        total_loss += config.opacity_loss_mult * (-o * torch.log(o + 1e-5)).mean()
+    return total_loss
+
+
 def predicted_normal_loss(model, ray_history, config):
     """Computes the predicted normal supervision loss defined in ref-NeRF."""
     total_loss = 0.

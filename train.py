@@ -134,10 +134,10 @@ def main(unused_argv):
         num_steps = config.early_exit_steps
     else:
         num_steps = config.max_steps
-
+    init_step = 0
     with logging_redirect_tqdm():
         tbar = tqdm(range(init_step + 1, num_steps + 1),
-                    desc='Training', initial=init_step + 1,
+                    desc='Training', initial=init_step, total=num_steps,
                     disable=not accelerator.is_main_process)
         for step in tbar:
             try:
@@ -187,6 +187,10 @@ def main(unused_argv):
             # distortion loss
             if config.distortion_loss_mult > 0:
                 losses['distortion'] = train_utils.distortion_loss(ray_history, config)
+
+            # opacity loss
+            if config.opacity_loss_mult > 0:
+                losses['opacity'] = train_utils.opacity_loss(renderings, config)
 
             # orientation loss in RefNeRF
             if (config.orientation_coarse_loss_mult > 0 or

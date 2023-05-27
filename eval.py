@@ -59,7 +59,7 @@ def main(unused_argv):
     config.checkpoint_dir = os.path.join(config.exp_path, 'checkpoints')
     config.render_dir = os.path.join(config.exp_path, 'render')
 
-    accelerator = accelerate.Accelerator(mixed_precision='fp16')
+    accelerator = accelerate.Accelerator()
 
     # setup logger
     logging.basicConfig(

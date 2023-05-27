@@ -60,7 +60,7 @@ class Config:
     early_exit_steps: Optional[int] = None  # Early stopping, for debugging.
     checkpoint_every: int = 5000  # The number of steps to save a checkpoint.
     resume_from_checkpoint: bool = True  # whether to resume from checkpoint.
-    checkpoints_total_limit: int = 3
+    checkpoints_total_limit: int = 1
 
     print_every: int = 100  # The number of steps between reports to tensorboard.
     train_render_every: int = 500  # Steps between test set renders when training
@@ -90,6 +90,7 @@ class Config:
     grad_max_norm: float = 0.  # Gradient clipping magnitude, disabled if == 0.
     grad_max_val: float = 0.  # Gradient clipping value, disabled if == 0.
     distortion_loss_mult: float = 0.005  # Multiplier on the distortion loss.
+    opacity_loss_mult: float = 0.  # Multiplier on the distortion loss.
 
     # Only used by eval.py:
     eval_only_once: bool = True  # If True evaluate the model only once, ow loop.
@@ -142,7 +143,7 @@ class Config:
     # extract mesh
     valid_weight_thresh: float = 0.05
     isosurface_threshold: float = 20
-    mesh_resolution: int = 512
+    mesh_voxels: int = 512 ** 3
     visibility_resolution: int = 512
     mesh_radius: float = 1.0
     std_value: float = 0.0  # std of the sampled points
@@ -150,7 +151,7 @@ class Config:
     extract_visibility: bool = True
     decimate_target: int = -1
     vertex_color: bool = True
-    vertex_projection: bool = False
+    vertex_projection: bool = True
 
 
 def define_common_flags():

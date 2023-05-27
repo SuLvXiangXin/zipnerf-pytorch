@@ -4,11 +4,12 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-MAX_H, MAX_W = 160, 160
-exp_name = "360_v2_0508"
+MAX_H, MAX_W = 512, 768
+exp_name = "360_v2_0527"
 keys = ["color", "distance_mean"]
-keys = ["color"]
+# keys = ["color"]
 
+os.makedirs('assets', exist_ok=True)
 root = os.path.join("exp", exp_name)
 scenes = sorted(os.listdir(root))
 
@@ -21,5 +22,5 @@ with imageio.get_writer(os.path.join("assets", exp_name+'.mp4'), fps=30) as writ
     for scene_videos in tqdm(video_files):
         readers = [imageio.get_reader(f) for f in scene_videos]
         for data in zip(*readers):
-            data = np.concatenate([cv2.resize(img, (MAX_H, MAX_W)) for img in data], axis=1)
+            data = np.concatenate([cv2.resize(img, (MAX_W, MAX_H)) for img in data], axis=1)
             writer.append_data(data)

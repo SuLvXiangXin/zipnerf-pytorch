@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCENE=lego
+SCENE=chair
 EXPERIMENT=blender/"$SCENE"
 DATA_ROOT=/SSD_DISK/datasets/nerf_synthetic
 DATA_DIR="$DATA_ROOT"/"$SCENE"

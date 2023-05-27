@@ -207,10 +207,9 @@ def volumetric_rendering(rgbs,
     depth = (weights * t_mids).sum(dim=-1)
     rendering['rgb'] = rgb
     rendering['depth'] = depth
+    rendering['acc'] = acc
 
     if compute_extras:
-        rendering['acc'] = acc
-
         if extras is not None:
             for k, v in extras.items():
                 if v is not None:

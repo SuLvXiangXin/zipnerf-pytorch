@@ -549,7 +549,6 @@ def pixels_to_rays(pix_x_int, pix_y_int, pixtocams,
     # Cut the distance in half, multiply it to match the variance of a uniform
     # distribution the size of a pixel (1/12, see the original mipnerf paper).
     radii = (0.5 * (dx_norm + dy_norm))[..., None] * 2 / np.sqrt(12)
-
     return origins, directions, viewdirs, radii, imageplane
 
 

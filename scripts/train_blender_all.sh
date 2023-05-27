@@ -2,7 +2,7 @@
 
 # outdoor
 EXPERIMENT_PREFIX=blender
-SCENE=("chair" "drums" "ficus" "hotdog" "lego" "materials" "mic" "ship")
+SCENE=("drums" "ficus" "hotdog" "lego" "materials" "mic" "ship")
 DATA_ROOT=/SSD_DISK/datasets/nerf_synthetic
 
 len=${#SCENE[@]}
@@ -20,14 +20,6 @@ do
   --gin_configs=configs/blender.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'"
-
-  accelerate launch render.py \
-  --gin_configs=configs/blender.gin \
-  --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
-  --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
-  --gin_bindings="Config.render_path = True" \
-  --gin_bindings="Config.render_path_frames = 120" \
-  --gin_bindings="Config.render_video_fps = 30"
 
   accelerate launch extract.py \
   --gin_configs=configs/blender.gin \

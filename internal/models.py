@@ -85,7 +85,7 @@ class Model(nn.Module):
             batch,
             train_frac,
             compute_extras,
-            zero_glo=True,
+            zero_glo=False,
     ):
         """The mip-NeRF Model.
 

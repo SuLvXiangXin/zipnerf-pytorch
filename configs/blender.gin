@@ -6,7 +6,6 @@ Config.factor = 0
 Config.hash_decay_mults = 10
 
 Model.raydist_fn = None
-Model.opaque_background = True
 
 PropMLP.disable_density_normals = True
 PropMLP.disable_rgb = True

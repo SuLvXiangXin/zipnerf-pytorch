@@ -18,11 +18,10 @@ def contract(x):
 def inv_contract(z):
     """The inverse of contract()."""
     eps = torch.finfo(z.dtype).eps
-    # eps = 1e-3
 
     # Clamping to eps prevents non-finite gradients when z == 0.
     z_mag_sq = torch.sum(z ** 2, dim=-1, keepdim=True).clamp_min(eps)
-    x = torch.where(z_mag_sq <= 1, z, z / (2 * torch.sqrt(z_mag_sq) - z_mag_sq))
+    x = torch.where(z_mag_sq <= 1, z, z / (2 * torch.sqrt(z_mag_sq) - z_mag_sq).clamp_min(eps))
     return x
 
 
