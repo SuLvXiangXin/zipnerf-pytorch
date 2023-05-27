@@ -14,7 +14,12 @@ New results(5.27):
 
 
 
-https://github.com/SuLvXiangXin/zipnerf-pytorch/assets/83005605/12a18a90-3e01-4500-8900-1078388f5604
+https://github.com/SuLvXiangXin/zipnerf-pytorch/assets/83005605/2b276e48-2dc4-4508-8441-e90ec963f7d9
+
+
+mesh results(5.27):
+
+<img width="852" alt="iShot_2023-05-28_02 06 23" src="https://github.com/SuLvXiangXin/zipnerf-pytorch/assets/83005605/8808f9f3-a025-4407-b06c-537d3209a682">
 
 
 Mipnerf360(PSNR):
