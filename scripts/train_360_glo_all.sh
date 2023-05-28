@@ -36,7 +36,8 @@ do
   --gin_configs=configs/360_glo.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
-  --gin_bindings="Config.factor = 4"
+  --gin_bindings="Config.factor = 4" \
+  --gin_bindings="Config.vertex_projection = True"
 done
 
 # indoor "Config.factor = 2"
@@ -72,5 +73,6 @@ do
   --gin_configs=configs/360_glo.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
-  --gin_bindings="Config.factor = 2"
+  --gin_bindings="Config.factor = 2" \
+  --gin_bindings="Config.vertex_projection = True"
 done

@@ -42,7 +42,6 @@ Training speed is about 1.5x slower than paper(1.5 hours on 8 A6000).
 
 The hash decay loss seems to have little effect(?), as many floaters can be found in the final results in both experiments (especially in Blender).
 
-This project is work-in-progress, and any advice will be appreciated.
 ## Install
 
 ```

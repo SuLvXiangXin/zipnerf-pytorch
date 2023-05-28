@@ -3,7 +3,6 @@
 # outdoor
 EXPERIMENT_PREFIX=360_v2_0527
 SCENE=("bicycle" "garden" "stump" )
-SCENE=("garden" "stump" )
 DATA_ROOT=/SSD_DISK/datasets/360_v2
 
 len=${#SCENE[@]}

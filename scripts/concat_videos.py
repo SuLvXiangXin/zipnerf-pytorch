@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 MAX_H, MAX_W = 512, 768
-exp_name = "360_v2_0527"
+exp_name = "360_v2_glo"
 keys = ["color", "distance_mean"]
 # keys = ["color"]
 
