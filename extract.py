@@ -92,8 +92,7 @@ def evaluate_color(model, accelerator: accelerate.Accelerator,
                       (accelerator.process_index + 1) * rays_per_host
         chunk_means = pnts[start:stop]
         chunk_stds = torch.full_like(chunk_means[..., 0], std_value)
-        chunk_viewdirs = torch.tensor([0, 0, 1], dtype=torch.float32, device=chunk_means.device)
-        chunk_viewdirs = torch.broadcast_to(chunk_viewdirs, chunk_means.shape)
+        chunk_viewdirs = torch.zeros_like(chunk_means)
         ray_results = model.nerf_mlp(False, chunk_means[:, None, None], chunk_stds[:, None, None],
                                      chunk_viewdirs)
         rgb = ray_results['rgb'][:, 0]
@@ -119,12 +118,12 @@ def evaluate_color_projection(model, accelerator: accelerate.Accelerator, vertic
                   disable=not accelerator.is_main_process):
         cur_chunk = min(chunk, origins.shape[0] - i)
         rays_remaining = cur_chunk % accelerator.num_processes
+        rays_per_host = cur_chunk // accelerator.num_processes
         if rays_remaining != 0:
             padding = accelerator.num_processes - rays_remaining
-            # raise
+            rays_per_host += 1
         else:
             padding = 0
-        rays_per_host = (cur_chunk + accelerator.num_processes - 1) // accelerator.num_processes
         start = i + accelerator.process_index * rays_per_host
         stop = start + rays_per_host
 
@@ -428,6 +427,10 @@ def main(unused_argv):
                 pts_density = evaluate_density(module, accelerator, points,
                                                config, std_value=config.std_value)
 
+                # bound the vertices
+                points_world = coord.inv_contract(2 * points)
+                pts_density[points_world.norm(dim=-1) > config.mesh_max_radius] = 0.0
+
                 z = pts_density.detach().cpu().numpy()
 
                 # Skip if no surface found
@@ -467,20 +470,21 @@ def main(unused_argv):
     logger.info('Clean mesh...')
     vertices = combined_mesh.vertices.astype(np.float32)
     faces = combined_mesh.faces.astype(np.int32)
+
     vertices, faces = clean_mesh(vertices, faces,
                                  remesh=False, remesh_size=0.01,
                                  logger=logger, main_process=accelerator.is_main_process)
-
-    # decimation
-    if config.decimate_target > 0 and faces.shape[0] > config.decimate_target:
-        logger.info('Decimate mesh...')
-        vertices, triangles = decimate_mesh(vertices, faces, config.decimate_target, logger=logger)
 
     v = torch.from_numpy(vertices).contiguous().float().to(device)
     v = coord.inv_contract(2 * v)
     vertices = v.detach().cpu().numpy()
     f = torch.from_numpy(faces).contiguous().int().to(device)
 
+    # decimation
+    if config.decimate_target > 0 and faces.shape[0] > config.decimate_target:
+        logger.info('Decimate mesh...')
+        vertices, triangles = decimate_mesh(vertices, faces, config.decimate_target, logger=logger)
+    # import ipdb; ipdb.set_trace()
     if config.vertex_color:
         # batched inference to avoid OOM
         logger.info('Evaluate mesh vertex color...')

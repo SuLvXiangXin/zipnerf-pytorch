@@ -24,5 +24,6 @@ do
   accelerate launch extract.py \
   --gin_configs=configs/blender.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
-  --gin_bindings="Config.exp_name = '${EXPERIMENT}'"
+  --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
+  --gin_bindings="Config.mesh_voxels = 1073741824"  # 1024 ** 3
 done

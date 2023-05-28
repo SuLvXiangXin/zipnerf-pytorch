@@ -143,9 +143,10 @@ class Config:
     # extract mesh
     valid_weight_thresh: float = 0.05
     isosurface_threshold: float = 20
-    mesh_voxels: int = 1024 ** 3
+    mesh_voxels: int = 512 ** 3
     visibility_resolution: int = 512
-    mesh_radius: float = 1.0
+    mesh_radius: float = 1.0  # mesh radius * 2 = in contract space
+    mesh_max_radius: float = 10.0  # in world space
     std_value: float = 0.0  # std of the sampled points
     compute_visibility: bool = False
     extract_visibility: bool = True

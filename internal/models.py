@@ -688,7 +688,8 @@ def render_image(model,
             chunk_renderings, ray_history = model(rand,
                                                   chunk_batch,
                                                   train_frac=train_frac,
-                                                  compute_extras=True)
+                                                  compute_extras=True,
+                                                  zero_glo=True)
 
         gather = lambda v: accelerator.gather(v.contiguous())[:-padding] \
             if padding > 0 else accelerator.gather(v.contiguous())
