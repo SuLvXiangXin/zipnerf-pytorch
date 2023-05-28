@@ -31,6 +31,12 @@ do
   --gin_bindings="Config.render_path_frames = 120" \
   --gin_bindings="Config.render_video_fps = 30" \
   --gin_bindings="Config.factor = 4"
+
+  accelerate launch extract.py \
+  --gin_configs=configs/360_glo.gin \
+  --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
+  --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
+  --gin_bindings="Config.factor = 4"
 done
 
 # indoor "Config.factor = 2"
@@ -60,5 +66,11 @@ do
   --gin_bindings="Config.render_path = True" \
   --gin_bindings="Config.render_path_frames = 120" \
   --gin_bindings="Config.render_video_fps = 30" \
+  --gin_bindings="Config.factor = 2"
+
+  accelerate launch extract.py \
+  --gin_configs=configs/360_glo.gin \
+  --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
+  --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
   --gin_bindings="Config.factor = 2"
 done
