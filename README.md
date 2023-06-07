@@ -174,10 +174,11 @@ accelerate launch extract.py \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
     --gin_bindings="Config.factor = 4"
-    --gin_bindings="Config.mesh_radius = 1"  # smaller for more details e.g. 0.2 in bicycle scene
-    --gin_bindings="Config.isosurface_threshold = 20"  # empirical value
-    --gin_bindings="Config.mesh_resolution = 1024"  # mesh resolution for marching cube
-    --gin_bindings="Config.vertex_color = True"  # saving mesh with vertex color instead of atlas which is much slower but with more details.
+#    --gin_bindings="Config.mesh_radius = 1"  # (optional) smaller for more details e.g. 0.2 in bicycle scene
+#    --gin_bindings="Config.isosurface_threshold = 20"  # (optional) empirical value
+#    --gin_bindings="Config.mesh_voxels=134217728"  # (optional) number of voxels used to extract mesh, e.g. 134217728 equals to 512**3 . 
+#    --gin_bindings="Config.vertex_color = True"  # (optional) saving mesh with vertex color instead of atlas which is much slower but with more details.
+#    --gin_bindings="Config.vertex_projection = True"  # (optional) use projection for vertex color
 
 # alternatively you can use an example script 
 bash scripts/extract_360.sh
