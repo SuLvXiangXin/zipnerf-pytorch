@@ -176,7 +176,7 @@ accelerate launch extract.py \
     --gin_bindings="Config.factor = 4"
 #    --gin_bindings="Config.mesh_radius = 1"  # (optional) smaller for more details e.g. 0.2 in bicycle scene
 #    --gin_bindings="Config.isosurface_threshold = 20"  # (optional) empirical value
-#    --gin_bindings="Config.mesh_voxels=134217728"  # (optional) number of voxels used to extract mesh, e.g. 134217728 equals to 512**3 . 
+#    --gin_bindings="Config.mesh_voxels=134217728"  # (optional) number of voxels used to extract mesh, e.g. 134217728 equals to 512**3 . Smaller values may solve OutoFMemoryError
 #    --gin_bindings="Config.vertex_color = True"  # (optional) saving mesh with vertex color instead of atlas which is much slower but with more details.
 #    --gin_bindings="Config.vertex_projection = True"  # (optional) use projection for vertex color
 
