@@ -18,7 +18,7 @@ New results(5.27):
 https://github.com/SuLvXiangXin/zipnerf-pytorch/assets/83005605/2b276e48-2dc4-4508-8441-e90ec963f7d9
 
 
-360_v2_glo:(less floaters, but worse metric)
+360_v2_glo:(fewer floaters, but worse metric)
 
 
 https://github.com/SuLvXiangXin/zipnerf-pytorch/assets/83005605/bddb5610-2a4f-4981-8e17-71326a24d291

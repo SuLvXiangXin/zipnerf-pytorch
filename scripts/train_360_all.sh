@@ -35,7 +35,7 @@ do
   --gin_bindings="Config.render_video_fps = 30" \
   --gin_bindings="Config.factor = 4"
 
-  accelerate launch tsdf.py \
+  accelerate launch extract.py \
   --gin_configs=configs/360.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
@@ -73,7 +73,7 @@ do
   --gin_bindings="Config.render_video_fps = 30" \
   --gin_bindings="Config.factor = 2"
 
-  accelerate launch tsdf.py \
+  accelerate launch extract.py \
   --gin_configs=configs/360.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
