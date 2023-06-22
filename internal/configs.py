@@ -61,7 +61,7 @@ class Config:
     checkpoint_every: int = 5000  # The number of steps to save a checkpoint.
     resume_from_checkpoint: bool = True  # whether to resume from checkpoint.
     checkpoints_total_limit: int = 1
-
+    gradient_scaling: bool = False  # If True, scale gradients as in https://gradient-scaling.github.io/.
     print_every: int = 100  # The number of steps between reports to tensorboard.
     train_render_every: int = 500  # Steps between test set renders when training
     data_loss_type: str = 'charb'  # What kind of loss to use ('mse' or 'charb').
@@ -140,7 +140,7 @@ class Config:
 
     zero_glo: bool = False
 
-    # extract mesh
+    # marching cubes
     valid_weight_thresh: float = 0.05
     isosurface_threshold: float = 20
     mesh_voxels: int = 512 ** 3
@@ -153,6 +153,12 @@ class Config:
     decimate_target: int = -1
     vertex_color: bool = True
     vertex_projection: bool = True
+
+    # tsdf
+    tsdf_radius: float = 2.0
+    tsdf_resolution: int = 512
+    truncation_margin: float = 5.0
+    tsdf_max_radius: float = 10.0  # in world space
 
 
 def define_common_flags():

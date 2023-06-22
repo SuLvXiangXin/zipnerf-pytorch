@@ -149,7 +149,7 @@ def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, 
     # import trimesh
     # trimesh.Trimesh(means.reshape(-1, 3).detach().cpu().numpy()).export("test.ply", "ply")
 
-    return means, stds
+    return means, stds, t
 
 
 def compute_alpha_weights(density, tdist, dirs, opaque_background=False):
@@ -204,7 +204,11 @@ def volumetric_rendering(rgbs,
     bg_w = (1 - acc[..., None]).clamp_min(0.)  # The weight of the background.
     rgb = (weights[..., None] * rgbs).sum(dim=-2) + bg_w * bg_rgbs
     t_mids = 0.5 * (tdist[..., :-1] + tdist[..., 1:])
-    depth = (weights * t_mids).sum(dim=-1)
+    depth = (
+        torch.clip(
+            torch.nan_to_num((weights * t_mids).sum(dim=-1) / acc.clamp_min(eps), torch.inf),
+            tdist[..., 0], tdist[..., -1]))
+
     rendering['rgb'] = rgb
     rendering['depth'] = depth
     rendering['acc'] = acc

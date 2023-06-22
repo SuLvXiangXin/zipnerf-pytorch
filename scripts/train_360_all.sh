@@ -1,9 +1,11 @@
 #!/bin/bash
 
 # outdoor
-EXPERIMENT_PREFIX=360_v2_0527
+EXPERIMENT_PREFIX=360_v2_gradient_scaling
 SCENE=("bicycle" "garden" "stump" )
-DATA_ROOT=/SSD_DISK/datasets/360_v2
+#SCENE=("garden" )
+#DATA_ROOT=/SSD_DISK/datasets/360_v2
+DATA_ROOT=/SSD_DISK/users/guchun/speed/zipnerf-pytorch/data/360_v2
 
 len=${#SCENE[@]}
 for((i=0; i<$len; i++ ))
@@ -15,7 +17,8 @@ do
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
-      --gin_bindings="Config.factor = 4"
+    --gin_bindings="Config.gradient_scaling = True" \
+    --gin_bindings="Config.factor = 4"
 
   accelerate launch eval.py \
   --gin_configs=configs/360.gin \
@@ -32,7 +35,7 @@ do
   --gin_bindings="Config.render_video_fps = 30" \
   --gin_bindings="Config.factor = 4"
 
-  accelerate launch extract.py \
+  accelerate launch tsdf.py \
   --gin_configs=configs/360.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
@@ -41,6 +44,7 @@ done
 
 # indoor "Config.factor = 2"
 SCENE=("room" "counter" "kitchen" "bonsai")
+SCENE=()
 len=${#SCENE[@]}
 for((i=0; i<$len; i++ ))
 do
@@ -51,6 +55,7 @@ do
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \
+    --gin_bindings="Config.gradient_scaling = True" \
     --gin_bindings="Config.factor = 2"
 
   accelerate launch eval.py \
@@ -68,7 +73,7 @@ do
   --gin_bindings="Config.render_video_fps = 30" \
   --gin_bindings="Config.factor = 2"
 
-  accelerate launch extract.py \
+  accelerate launch tsdf.py \
   --gin_configs=configs/360.gin \
   --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
   --gin_bindings="Config.exp_name = '${EXPERIMENT}'" \

@@ -16,6 +16,19 @@ from torch.utils._pytree import tree_map, tree_flatten
 from torch_scatter import segment_coo
 
 
+class GradientScaler(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, colors, sigmas, ray_dist):
+        ctx.save_for_backward(ray_dist)
+        return colors, sigmas
+
+    @staticmethod
+    def backward(ctx, grad_output_colors, grad_output_sigmas):
+        (ray_dist,) = ctx.saved_tensors
+        scaling = torch.square(ray_dist).clamp(0, 1)
+        return grad_output_colors * scaling[..., None], grad_output_sigmas * scaling, None
+
+
 def tree_reduce(fn, tree, initializer=0):
     return functools.reduce(fn, tree_flatten(tree)[0], initializer)
 

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# outdoor
 EXPERIMENT_PREFIX=blender
 SCENE=("drums" "ficus" "hotdog" "lego" "materials" "mic" "ship")
 DATA_ROOT=/SSD_DISK/datasets/nerf_synthetic

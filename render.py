@@ -122,7 +122,7 @@ def main(unused_argv):
     logger.info(f'Rendering checkpoint at step {step}.')
 
     out_name = 'path_renders' if config.render_path else 'test_preds'
-    out_name = f'{out_name}_step_{step}'
+    out_name = f'{out_name}_step_{step}2'
     out_dir = os.path.join(config.render_dir, out_name)
     utils.makedirs(out_dir)
 

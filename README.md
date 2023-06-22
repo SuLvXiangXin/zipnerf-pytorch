@@ -6,6 +6,7 @@ An unofficial pytorch implementation of
 This work is based on [multinerf](https://github.com/google-research/multinerf), so features in refnerf,rawnerf,mipnerf360 are also available.
 
 ## News
+- (6.22) Add extracting mesh through tsdf; add [gradient scaling](https://gradient-scaling.github.io/) for near plane floaters.
 - (5.26) Implement the latest version of ZipNeRF [https://arxiv.org/abs/2304.06706](https://arxiv.org/abs/2304.06706).
 - (5.22) Add extracting mesh; add logging,checkpointing system
 
@@ -179,6 +180,13 @@ accelerate launch extract.py \
 #    --gin_bindings="Config.mesh_voxels=134217728"  # (optional) number of voxels used to extract mesh, e.g. 134217728 equals to 512**3 . Smaller values may solve OutoFMemoryError
 #    --gin_bindings="Config.vertex_color = True"  # (optional) saving mesh with vertex color instead of atlas which is much slower but with more details.
 #    --gin_bindings="Config.vertex_projection = True"  # (optional) use projection for vertex color
+
+# or extracting mesh using tsdf method
+accelerate launch extract.py \
+    --gin_configs=configs/360.gin \
+    --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
+    --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
+    --gin_bindings="Config.factor = 4"
 
 # alternatively you can use an example script 
 bash scripts/extract_360.sh

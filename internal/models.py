@@ -5,6 +5,7 @@ from internal import geopoly
 from internal import image
 from internal import math
 from internal import ref_utils
+from internal import train_utils
 from internal import render
 from internal import stepfun
 from internal import utils
@@ -192,7 +193,7 @@ class Model(nn.Module):
             tdist = s_to_t(sdist)
 
             # Cast our rays, by turning our distance intervals into Gaussians.
-            means, stds = render.cast_rays(
+            means, stds, ts = render.cast_rays(
                 tdist,
                 batch['origins'],
                 batch['directions'],
@@ -212,6 +213,9 @@ class Model(nn.Module):
                 glo_vec=None if is_prop else glo_vec,
                 exposure=batch.get('exposure_values'),
             )
+            if self.config.gradient_scaling:
+                ray_results['rgb'], ray_results['density'] = train_utils.GradientScaler.apply(
+                    ray_results['rgb'], ray_results['density'], ts.mean(dim=-1))
 
             # Get the weights used by volumetric rendering (and our other losses).
             weights = render.compute_alpha_weights(

@@ -25,6 +25,16 @@ def inv_contract(z):
     return x
 
 
+def inv_contract_np(z):
+    """The inverse of contract()."""
+    eps = np.finfo(z.dtype).eps
+
+    # Clamping to eps prevents non-finite gradients when z == 0.
+    z_mag_sq = np.maximum(np.sum(z ** 2, axis=-1, keepdims=True), eps)
+    x = np.where(z_mag_sq <= 1, z, z / np.maximum(2 * np.sqrt(z_mag_sq) - z_mag_sq, eps))
+    return x
+
+
 def contract_tuple(x):
     res = contract(x)
     return res, res
