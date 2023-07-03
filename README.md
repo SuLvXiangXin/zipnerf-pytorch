@@ -11,7 +11,7 @@ This work is based on [multinerf](https://github.com/google-research/multinerf),
 - (5.22) Add extracting mesh; add logging,checkpointing system
 
 ## Results
-New results(5.27): 
+New results(5.27): [Pretrained weights](https://drive.google.com/drive/folders/1W1jFa519m7Ye9Pcz5N_30TMPM-7KTTBc?usp=sharing)
 
 360_v2:
 
