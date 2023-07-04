@@ -182,7 +182,7 @@ accelerate launch extract.py \
 #    --gin_bindings="Config.vertex_projection = True"  # (optional) use projection for vertex color
 
 # or extracting mesh using tsdf method
-accelerate launch extract.py \
+accelerate launch tsdf.py \
     --gin_configs=configs/360.gin \
     --gin_bindings="Config.data_dir = '${DATA_DIR}'" \
     --gin_bindings="Config.exp_name = '${EXP_NAME}'" \
