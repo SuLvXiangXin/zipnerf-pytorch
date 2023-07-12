@@ -26,7 +26,7 @@ configs.define_common_flags()
 
 def create_videos(config, base_dir, out_dir, out_name, num_frames):
     """Creates videos out of the images saved to disk."""
-    names = [n for n in config.exp_path.split('/') if n]
+    names = [n for n in config.exp_path.split(os.sep) if n]
     # Last two parts of checkpoint path are experiment name and scene name.
     exp_name, scene_name = names[-2:]
     video_prefix = f'{scene_name}_{exp_name}_{out_name}'
@@ -122,7 +122,7 @@ def main(unused_argv):
     logger.info(f'Rendering checkpoint at step {step}.')
 
     out_name = 'path_renders' if config.render_path else 'test_preds'
-    out_name = f'{out_name}_step_{step}2'
+    out_name = f'{out_name}_step_{step}'
     out_dir = os.path.join(config.render_dir, out_name)
     utils.makedirs(out_dir)
 
