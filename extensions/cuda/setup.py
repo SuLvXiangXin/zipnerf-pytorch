@@ -30,10 +30,10 @@ elif os.name == "nt":
         os.environ["PATH"] += ";" + cl_path
 
 setup(
-    name='gridencoder', # package name, import this to use python API
+    name='cuda_backend', # package name, import this to use python API
     ext_modules=[
         CUDAExtension(
-            name='_gridencoder', # extension name, import this to use CUDA API
+            name='_cuda_backend', # extension name, import this to use CUDA API
             sources=[os.path.join(_src_path, 'src', f) for f in [
                 'gridencoder.cu',
                 'bindings.cpp',

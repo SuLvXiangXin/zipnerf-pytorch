@@ -54,7 +54,7 @@ Training speed is about 1.5x slower than paper(1.5 hours on 8 A6000).
 
 The hash decay loss seems to have little effect(?), as many floaters can be found in the final results in both experiments (especially in Blender).
 
-## Install
+## Install CUDA backend
 
 ```
 # Clone the repo.
@@ -68,8 +68,8 @@ conda activate zipnerf
 # Install requirements.
 pip install -r requirements.txt
 
-# Install other extensions
-pip install ./gridencoder
+# Install other cuda extensions
+pip install ./extensions/cuda
 
 # Install nvdiffrast (optional, for textured mesh)
 git clone https://github.com/NVlabs/nvdiffrast
@@ -80,6 +80,34 @@ pip install ./nvdiffrast
 CUDA=cu117
 pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.0+${CUDA}.html
 ```
+
+
+## Install DPCPP backend
+
+```
+  # Install drivers, oneAPI and ipex for Intel GPUs
+  Following the steps in the below page to install gpu drivers, oneAPI BaseKit, and pytorch+ipex (abbr. intel-extension-for-pytorch):
+  https://intel.github.io/intel-extension-for-pytorch/xpu/latest/tutorials/installations/linux.html
+  For pytorch and Ipex versions, please install the version 1.13.120 with
+
+  python -m pip install torch==1.13.0a0+git6c9b55e intel_extension_for_pytorch==1.13.120+xpu -f https://developer.intel.com/ipex-whl-stable-xpu
+
+  After the installation is done, make sure it is successfully by running the example provided by
+  https://github.com/intel/intel-extension-for-pytorch/tree/release/xpu/1.13.120#inference-on-gpu
+```
+
+  ### Preparing environment
+```
+  export DPCPP_HOME=path/to/llvm  # path to the folder for llvm, default value:~
+  bash scripts/set_dpcpp_env.sh intel # for intel's gpu
+  bash scripts/set_dpcpp_env.sh nvidia # for nvidia's gpu
+```
+
+  ### Reference of DPCPP support for CUDA
+```
+  https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-nvidia-cuda
+```
+
 
 ## Dataset
 [mipnerf360](http://storage.googleapis.com/gresearch/refraw360/360_v2.zip)
@@ -134,6 +162,12 @@ bash scripts/train_blender.sh
 # metric, render image, etc can be viewed through tensorboard
 tensorboard --logdir "exp/${EXP_NAME}"
 
+```
+
+## Train & Render with DPCPP backend
+```
+# add config in command line
+      --gin_bindings="Config.dpcpp_backend = True" \
 ```
 
 ### Render

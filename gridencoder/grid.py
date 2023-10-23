@@ -6,10 +6,6 @@ from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 from torch.cuda.amp import custom_bwd, custom_fwd 
 
-try:
-    import _gridencoder as _backend
-except ImportError:
-    from .backend import _backend
 
 _gridtype_to_id = {
     'hash': 0,
@@ -24,7 +20,7 @@ _interp_to_id = {
 class _grid_encode(Function):
     @staticmethod
     @custom_fwd
-    def forward(ctx, inputs, embeddings, offsets, per_level_scale, base_resolution, calc_grad_inputs=False, gridtype=0, align_corners=False, interpolation=0):
+    def forward(ctx, backend, inputs, embeddings, offsets, per_level_scale, base_resolution, calc_grad_inputs=False, gridtype=0, align_corners=False, interpolation=0):
         # inputs: [B, D], float in [0, 1]
         # embeddings: [sO, C], float
         # offsets: [L + 1], int
@@ -51,11 +47,13 @@ class _grid_encode(Function):
         else:
             dy_dx = None
 
-        _backend.grid_encode_forward(inputs, embeddings, offsets, outputs, B, D, C, L, S, H, dy_dx, gridtype, align_corners, interpolation)
+        backend.synchronize()
+        backend.funcs.grid_encode_forward(inputs, embeddings, offsets, outputs, B, D, C, L, S, H, dy_dx, gridtype, align_corners, interpolation)
 
         # permute back to [B, L * C]
         outputs = outputs.permute(1, 0, 2).reshape(B, L * C)
 
+        ctx.backend = backend
         ctx.save_for_backward(inputs, embeddings, offsets, dy_dx)
         ctx.dims = [B, D, C, L, S, H, gridtype, interpolation]
         ctx.align_corners = align_corners
@@ -66,7 +64,7 @@ class _grid_encode(Function):
     #@once_differentiable
     @custom_bwd
     def backward(ctx, grad):
-
+        backend = ctx.backend
         inputs, embeddings, offsets, dy_dx = ctx.saved_tensors
         B, D, C, L, S, H, gridtype, interpolation = ctx.dims
         align_corners = ctx.align_corners
@@ -81,13 +79,13 @@ class _grid_encode(Function):
         else:
             grad_inputs = None
 
-        _backend.grid_encode_backward(grad, inputs, embeddings, offsets, grad_embeddings, B, D, C, L, S, H, dy_dx, grad_inputs, gridtype, align_corners, interpolation)
+        backend.synchronize()
+        backend.funcs.grid_encode_backward(grad, inputs, embeddings, offsets, grad_embeddings, B, D, C, L, S, H, dy_dx, grad_inputs, gridtype, align_corners, interpolation)
 
         if dy_dx is not None:
             grad_inputs = grad_inputs.to(inputs.dtype)
 
-        return grad_inputs, grad_embeddings, None, None, None, None, None, None, None
-        
+        return None, grad_inputs, grad_embeddings, None, None, None, None, None, None, None
 
 
 grid_encode = _grid_encode.apply
@@ -118,6 +116,10 @@ class GridEncoder(nn.Module):
         self.interp_id = _interp_to_id[interpolation] # "linear" or "smoothstep"
         self.align_corners = align_corners
         self.init_std = init_std
+
+        from extensions import Backend
+        self.backend = Backend.get_backend()
+        self.save_iteration = 0  # Flag to track if the file has been saved
 
         # allocate parameters
         resolutions = []
@@ -166,7 +168,7 @@ class GridEncoder(nn.Module):
         prefix_shape = list(inputs.shape[:-1])
         inputs = inputs.view(-1, self.input_dim)
 
-        outputs = grid_encode(inputs, self.embeddings, self.offsets, self.per_level_scale, self.base_resolution, inputs.requires_grad, self.gridtype_id, self.align_corners, self.interp_id)
+        outputs = grid_encode(self.backend, inputs, self.embeddings, self.offsets, self.per_level_scale, self.base_resolution, inputs.requires_grad, self.gridtype_id, self.align_corners, self.interp_id)
         outputs = outputs.view(prefix_shape + [self.output_dim])
 
         #print('outputs', outputs.shape, outputs.dtype, outputs.min().item(), outputs.max().item())
@@ -195,4 +197,4 @@ class GridEncoder(nn.Module):
         if self.embeddings.grad is None:
             raise ValueError('grad is None, should be called after loss.backward() and before optimizer.step()!')
 
-        _backend.grad_total_variation(inputs, self.embeddings, self.embeddings.grad, self.offsets, weight, B, D, C, L, S, H, self.gridtype_id, self.align_corners)
+        self.backend.funcs.grad_total_variation(inputs, self.embeddings, self.embeddings.grad, self.offsets, weight, B, D, C, L, S, H, self.gridtype_id, self.align_corners)

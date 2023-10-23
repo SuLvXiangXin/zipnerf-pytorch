@@ -16,7 +16,10 @@ import torch.nn.functional as F
 from torch.utils._pytree import tree_map
 from tqdm import tqdm
 from gridencoder import GridEncoder
-from torch_scatter import segment_coo
+try:
+    from torch_scatter import segment_coo
+except:
+    pass
 
 gin.config.external_configurable(math.safe_exp, module='math')
 
@@ -58,10 +61,18 @@ class Model(nn.Module):
         set_kwargs(self, kwargs)
         self.config = config
 
+        from extensions import Backend
+        Backend.set_backend('dpcpp' if self.config.dpcpp_backend else 'cuda')
+
         # Construct MLPs. WARNING: Construction order may matter, if MLP weights are
         # being regularized.
         self.nerf_mlp = NerfMLP(num_glo_features=self.num_glo_features,
                                 num_glo_embeddings=self.num_glo_embeddings)
+        if self.config.dpcpp_backend:
+            self.generator = self.nerf_mlp.encoder.backend.get_generator()
+        else:
+            self.generator = None
+
         if self.single_mlp:
             self.prop_mlp = self.nerf_mlp
         elif not self.distinct_prop:
@@ -280,12 +291,15 @@ class Model(nn.Module):
                 # Compute the hash decay loss for this level.
                 idx = mlp.encoder.idx
                 param = mlp.encoder.embeddings
-                loss_hash_decay = segment_coo(param ** 2,
-                                              idx,
-                                              torch.zeros(idx.max() + 1, param.shape[-1], device=param.device),
-                                              reduce='mean'
-                                              ).mean()
-                ray_results['loss_hash_decay'] = loss_hash_decay
+                if not self.config.dpcpp_backend:
+                    loss_hash_decay = segment_coo(param ** 2,
+                                                  idx,
+                                                  torch.zeros(idx.max() + 1, param.shape[-1], device=param.device),
+                                                  reduce='mean'
+                                                  ).mean()
+                    ray_results['loss_hash_decay'] = loss_hash_decay
+                else:
+                    ray_results['loss_hash_decay'] = (param ** 2).mean()
 
             renderings.append(rendering)
             ray_results['sdist'] = sdist.clone()

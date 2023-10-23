@@ -105,49 +105,80 @@ def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, 
   Returns:
     a tuple of arrays of means and covariances.
   """
-    t0 = tdist[..., :-1, None]
-    t1 = tdist[..., 1:, None]
-    radii = radii[..., None]
+    means = None
+    stds = None
 
-    t_m = (t0 + t1) / 2
-    t_d = (t1 - t0) / 2
+    from extensions import Backend
 
-    j = torch.arange(6, device=tdist.device)
-    t = t0 + t_d / (t_d ** 2 + 3 * t_m ** 2) * (t1 ** 2 + 2 * t_m ** 2 + 3 / 7 ** 0.5 * (2 * j / 5 - 1) * (
-        (t_d ** 2 - t_m ** 2) ** 2 + 4 * t_m ** 4).sqrt())
+    if Backend.get_name() == 'dpcpp':
+        import random
 
-    deg = torch.pi / 3 * torch.tensor([0, 2, 4, 3, 5, 1], device=tdist.device, dtype=torch.float)
-    deg = torch.broadcast_to(deg, t.shape)
-    if rand:
-        # randomly rotate and flip
-        mask = torch.rand_like(t0[..., 0]) > 0.5
-        deg = deg + 2 * torch.pi * torch.rand_like(deg[..., 0])[..., None]
-        deg = torch.where(mask[..., None], deg, torch.pi * 5 / 3 - deg)
+        MAX_INT = 2 ** 31 - 1
+        seed1 = random.randint(0, MAX_INT)
+        seed2 = random.randint(0, MAX_INT)
+        seed3 = random.randint(0, MAX_INT)
+
+        device = origins.device
+        l = list(tdist.size())
+        l[len(l) - 1] -= 1
+
+        l.append(6)
+        stds = torch.full(l, torch.inf, device = device)
+        l.append(3)
+        means = torch.full(l, torch.inf, device = device)
+
+        backend = Backend.get_backend()
+
+        backend.synchronize()
+        backend.funcs.cast_rays_dpcpp(tdist, origins, directions, cam_dirs, radii, seed1, seed2, seed3, True, 7, 3, 0.5, means, stds)
+        backend.synchronize()
+        # todo
+        t = 0
+
     else:
-        # rotate 30 degree and flip every other pattern
-        mask = torch.arange(t.shape[-2], device=tdist.device) % 2 == 0
-        mask = torch.broadcast_to(mask, t.shape[:-1])
-        deg = torch.where(mask[..., None], deg, deg + torch.pi / 6)
-        deg = torch.where(mask[..., None], deg, torch.pi * 5 / 3 - deg)
-    means = torch.stack([
-        radii * t * torch.cos(deg) / 2 ** 0.5,
-        radii * t * torch.sin(deg) / 2 ** 0.5,
-        t
-    ], dim=-1)
-    stds = std_scale * radii * t / 2 ** 0.5
+        t0 = tdist[..., :-1, None]
+        t1 = tdist[..., 1:, None]
+        radii = radii[..., None]
 
-    # two basis in parallel to the image plane
-    rand_vec = torch.randn_like(cam_dirs)
-    ortho1 = F.normalize(torch.cross(cam_dirs, rand_vec, dim=-1), dim=-1)
-    ortho2 = F.normalize(torch.cross(cam_dirs, ortho1, dim=-1), dim=-1)
+        t_m = (t0 + t1) / 2
+        t_d = (t1 - t0) / 2
 
-    # just use directions to be the third vector of the orthonormal basis,
-    # while the cross section of cone is parallel to the image plane
-    basis_matrix = torch.stack([ortho1, ortho2, directions], dim=-1)
-    means = math.matmul(means, basis_matrix[..., None, :, :].transpose(-1, -2))
-    means = means + origins[..., None, None, :]
-    # import trimesh
-    # trimesh.Trimesh(means.reshape(-1, 3).detach().cpu().numpy()).export("test.ply", "ply")
+        j = torch.arange(6, device=tdist.device)
+        t = t0 + t_d / (t_d ** 2 + 3 * t_m ** 2) * (t1 ** 2 + 2 * t_m ** 2 + 3 / 7 ** 0.5 * (2 * j / 5 - 1) * (
+            (t_d ** 2 - t_m ** 2) ** 2 + 4 * t_m ** 4).sqrt())
+
+        deg = torch.pi / 3 * torch.tensor([0, 2, 4, 3, 5, 1], device=tdist.device, dtype=torch.float)
+        deg = torch.broadcast_to(deg, t.shape)
+        if rand:
+            # randomly rotate and flip
+            mask = torch.rand_like(t0[..., 0]) > 0.5
+            deg = deg + 2 * torch.pi * torch.rand_like(deg[..., 0])[..., None]
+            deg = torch.where(mask[..., None], deg, torch.pi * 5 / 3 - deg)
+        else:
+            # rotate 30 degree and flip every other pattern
+            mask = torch.arange(t.shape[-2], device=tdist.device) % 2 == 0
+            mask = torch.broadcast_to(mask, t.shape[:-1])
+            deg = torch.where(mask[..., None], deg, deg + torch.pi / 6)
+            deg = torch.where(mask[..., None], deg, torch.pi * 5 / 3 - deg)
+        means = torch.stack([
+            radii * t * torch.cos(deg) / 2 ** 0.5,
+            radii * t * torch.sin(deg) / 2 ** 0.5,
+            t
+        ], dim=-1)
+        stds = std_scale * radii * t / 2 ** 0.5
+
+        # two basis in parallel to the image plane
+        rand_vec = torch.randn_like(cam_dirs)
+        ortho1 = F.normalize(torch.cross(cam_dirs, rand_vec, dim=-1), dim=-1)
+        ortho2 = F.normalize(torch.cross(cam_dirs, ortho1, dim=-1), dim=-1)
+
+        # just use directions to be the third vector of the orthonormal basis,
+        # while the cross section of cone is parallel to the image plane
+        basis_matrix = torch.stack([ortho1, ortho2, directions], dim=-1)
+        means = math.matmul(means, basis_matrix[..., None, :, :].transpose(-1, -2))
+        means = means + origins[..., None, None, :]
+        # import trimesh
+        # trimesh.Trimesh(means.reshape(-1, 3).detach().cpu().numpy()).export("test.ply", "ply")
 
     return means, stds, t
 
