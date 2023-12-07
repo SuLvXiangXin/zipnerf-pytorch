@@ -36,6 +36,7 @@ setup(
             name='_cuda_backend', # extension name, import this to use CUDA API
             sources=[os.path.join(_src_path, 'src', f) for f in [
                 'gridencoder.cu',
+                'pdf.cu',
                 'bindings.cpp',
             ]],
             extra_compile_args={

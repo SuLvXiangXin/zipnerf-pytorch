@@ -56,6 +56,8 @@ class Config:
     vis_decimate: int = 0
 
     dpcpp_backend: bool = False  # If True, use DPC++ for the backend.
+    importance_sampling: bool = False # If True, use CUDA or DPC++ implementation
+    # of importance ray sampling from nerfacc
 
     # Only used by train.py:
     max_steps: int = 25000  # The number of optimization steps.

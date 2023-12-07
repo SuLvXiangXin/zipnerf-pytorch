@@ -63,6 +63,8 @@ class Model(nn.Module):
 
         from extensions import Backend
         Backend.set_backend('dpcpp' if self.config.dpcpp_backend else 'cuda')
+        self.backend = Backend.get_backend()
+        self.generator = self.backend.get_generator()
 
         # Construct MLPs. WARNING: Construction order may matter, if MLP weights are
         # being regularized.
@@ -187,13 +189,21 @@ class Model(nn.Module):
                 torch.full_like(sdist[..., :-1], -torch.inf))
 
             # Draw sampled intervals from each ray's current weights.
-            sdist = stepfun.sample_intervals(
-                rand,
-                sdist,
-                logits_resample,
-                num_samples,
-                single_jitter=self.single_jitter,
-                domain=(init_s_near, init_s_far))
+            if self.config.importance_sampling:
+                sdist = self.backend.funcs.sample_intervals(
+                    rand,
+                    sdist.contiguous(),
+                    stepfun.integrate_weights(torch.softmax(logits_resample, dim=-1)).contiguous(),
+                    num_samples,
+                    self.single_jitter)
+            else:
+                sdist = stepfun.sample_intervals(
+                    rand,
+                    sdist,
+                    logits_resample,
+                    num_samples,
+                    single_jitter=self.single_jitter,
+                    domain=(init_s_near, init_s_far))
 
             # Optimization will usually go nonlinear if you propagate gradients
             # through sampling.
@@ -291,15 +301,15 @@ class Model(nn.Module):
                 # Compute the hash decay loss for this level.
                 idx = mlp.encoder.idx
                 param = mlp.encoder.embeddings
-                if not self.config.dpcpp_backend:
+                if self.config.dpcpp_backend:
+                    ray_results['loss_hash_decay'] = (param ** 2).mean()
+                else:
                     loss_hash_decay = segment_coo(param ** 2,
                                                   idx,
                                                   torch.zeros(idx.max() + 1, param.shape[-1], device=param.device),
                                                   reduce='mean'
                                                   ).mean()
                     ray_results['loss_hash_decay'] = loss_hash_decay
-                else:
-                    ray_results['loss_hash_decay'] = (param ** 2).mean()
 
             renderings.append(rendering)
             ray_results['sdist'] = sdist.clone()
