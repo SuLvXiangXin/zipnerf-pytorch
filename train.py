@@ -72,12 +72,14 @@ def main(unused_argv):
     # load dataset
     dataset = datasets.load_dataset('train', config.data_dir, config)
     test_dataset = datasets.load_dataset('test', config.data_dir, config)
+    generator = model.generator
     dataloader = torch.utils.data.DataLoader(np.arange(len(dataset)),
                                              num_workers=8,
                                              shuffle=True,
                                              batch_size=1,
                                              collate_fn=dataset.collate_fn,
                                              persistent_workers=True,
+                                             generator=generator,
                                              )
     test_dataloader = torch.utils.data.DataLoader(np.arange(len(test_dataset)),
                                                   num_workers=4,
@@ -85,6 +87,7 @@ def main(unused_argv):
                                                   batch_size=1,
                                                   persistent_workers=True,
                                                   collate_fn=test_dataset.collate_fn,
+                                                  generator=generator,
                                                   )
     if config.rawnerf_mode:
         postprocess_fn = test_dataset.metadata['postprocess_fn']

@@ -13,7 +13,7 @@ from internal import stepfun
 from internal import utils
 import numpy as np
 from torch.utils._pytree import tree_map, tree_flatten
-from torch_scatter import segment_coo
+# from torch_scatter import segment_coo
 
 
 class GradientScaler(torch.autograd.Function):
