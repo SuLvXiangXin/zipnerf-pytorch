@@ -87,7 +87,7 @@ pip install torch-scatter -f https://data.pyg.org/whl/torch-2.0.0+${CUDA}.html
 ```
   # Install drivers, oneAPI and ipex for Intel GPUs
   Following the steps in the below page to install gpu drivers, oneAPI BaseKit, and pytorch+ipex (abbr. intel-extension-for-pytorch):
-  https://intel.github.io/intel-extension-for-pytorch/xpu/latest/tutorials/installations/linux.html
+  https://intel.github.io/intel-extension-for-pytorch/xpu/1.13.120+xpu/tutorials/installation.html
   For pytorch and Ipex versions, please install the version 1.13.120 with
 
   python -m pip install torch==1.13.0a0+git6c9b55e intel_extension_for_pytorch==1.13.120+xpu -f https://developer.intel.com/ipex-whl-stable-xpu
@@ -198,6 +198,37 @@ accelerate launch eval.py \
 
 # alternatively you can use an example evaluating script 
 bash scripts/eval_360.sh
+```
+
+## Use NerfStudio
+https://github.com/nerfstudio-project/nerfstudio  
+Nerfstudio provides a simple API that allows for a simplified end-to-end process of creating, training, and testing NeRFs. The library supports a more interpretable implementation of NeRFs by modularizing each component. 
+You can use the viewer provided by nerfstudio to view the render results during the training process.
+### Install 
+```
+pip install nerfstudio  
+```
+### Train & eval 
+```
+ns-train zipnerf --data {DATA_DIR/SCENE}
+ns-eval --load-config {outputs/SCENE/zipnerf/EXP_DIR/config.yml}
+
+ns-train zipnerf -h  # Use this command to see the full list of configuration options.
+```
+*Nerfstudio's ColmapDataParser rounds down the image size when downscaling, which is different from the 360_v2 dataset.You can use nerfstudio to reprocess the data or modify the code logic for downscale in the library as dicussed in https://github.com/nerfstudio-project/nerfstudio/issues/1438.  
+*Nerfstudio's train/eval division strategy is different from this repo. Final training and evaluation results may vary.
+
+For more usage or information, please see https://github.com/nerfstudio-project/nerfstudio.
+
+### Viewer
+Given a pretrained model checkpoint, you can start the viewer by running
+```
+ns-viewer --load-config outputs/SCENE/zipnerf/EXP_TIME/config.yml  
+```
+#### Remote Server
+If you are running on a remote machine, you will need to port forward the websocket port (defaults to 7007). SSH must be set up on the remote machine. Then run the following on this machine:
+```
+ssh -L <port>:localhost:<port> USER@REMOTE.SERVER.IP
 ```
 
 ## Extract mesh
