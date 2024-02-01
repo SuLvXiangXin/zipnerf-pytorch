@@ -207,24 +207,40 @@ You can use the viewer provided by nerfstudio to view the render results during 
 ### Install 
 ```
 pip install nerfstudio  
+# cd zipnerf-pytorch
+pip install -e . 
+ns-install-cli
 ```
+
 ### Train & eval 
 ```
 ns-train zipnerf --data {DATA_DIR/SCENE}
 ns-eval --load-config {outputs/SCENE/zipnerf/EXP_DIR/config.yml}
 
-ns-train zipnerf -h  # Use this command to see the full list of configuration options.
+ns-train zipnerf -h  # show the full list of model configuration options.
+ns-train zipnerf colmap -h  # dataparset configuration options
 ```
 *Nerfstudio's ColmapDataParser rounds down the image size when downscaling, which is different from the 360_v2 dataset.You can use nerfstudio to reprocess the data or modify the code logic for downscale in the library as dicussed in https://github.com/nerfstudio-project/nerfstudio/issues/1438.  
 *Nerfstudio's train/eval division strategy is different from this repo. Final training and evaluation results may vary.
 
 For more usage or information, please see https://github.com/nerfstudio-project/nerfstudio.
 
+### Configuration 
+#### for Zipnerf-pytorch
+You can create a new .gin file and pass in the 'gin_file' list in ZipNerfModelConfig of zipnerf_ns/zipnerf_config.py or update the contents of the default .gin file.
+#### for nerfstudio
+```
+ns-train zipnerf -h
+ns-train zipnerf colmap -h
+```
+You can modify zipnerf_ns/zipnerf_config.py, or use the instruction.
+
 ### Viewer
 Given a pretrained model checkpoint, you can start the viewer by running
 ```
 ns-viewer --load-config outputs/SCENE/zipnerf/EXP_TIME/config.yml  
 ```
+
 #### Remote Server
 If you are running on a remote machine, you will need to port forward the websocket port (defaults to 7007). SSH must be set up on the remote machine. Then run the following on this machine:
 ```
