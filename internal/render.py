@@ -168,9 +168,9 @@ def cast_rays(tdist, origins, directions, cam_dirs, radii, rand=True, n=7, m=3, 
         stds = std_scale * radii * t / 2 ** 0.5
 
         # two basis in parallel to the image plane
-        rand_vec = torch.randn_like(cam_dirs)
-        ortho1 = F.normalize(torch.cross(cam_dirs, rand_vec, dim=-1), dim=-1)
-        ortho2 = F.normalize(torch.cross(cam_dirs, ortho1, dim=-1), dim=-1)
+        rand_vec = torch.randn_like(directions)
+        ortho1 = F.normalize(torch.cross(directions, rand_vec, dim=-1), dim=-1)
+        ortho2 = F.normalize(torch.cross(directions, ortho1, dim=-1), dim=-1)
 
         # just use directions to be the third vector of the orthonormal basis,
         # while the cross section of cone is parallel to the image plane

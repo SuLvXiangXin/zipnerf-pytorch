@@ -1,0 +1,47 @@
+[project]
+name = "zipnerf"
+description = "Zipnerf plugin for creating and registering zipnerf in nerfstudio."
+version = "0.1.0"
+
+dependencies = [
+    "nerfstudio >= 0.3.0",
+    "numpy",
+    "torch",
+    "absl-py",
+    "accelerate",
+    "gin-config",
+    "imageio",
+    "imageio[ffmpeg]",
+    "matplotlib",
+    "mediapy",
+    "opencv-contrib-python",
+    "opencv-python",
+    "Pillow",
+    "trimesh",
+    "pymeshlab",
+    "xatlas",
+    "plyfile",
+    "rawpy",
+    "ninja",
+    "scipy",
+    "scikit-image",
+    "scikit-learn",
+    "tensorboard",
+    "tensorboardX",
+    "tqdm",
+    "gin-config"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+
+[tool.setuptools.packages.find]
+include = ["zipnerf_ns*","internal*","gridencoder*","extensions*","configs*"]
+
+[tool.setuptools.package-data]
+configs = ["*.gin"]
+
+# register the entry point of your new method here:
+[project.entry-points.'nerfstudio.method_configs']
+zipnerf_ns = 'zipnerf_ns.zipnerf_config:zipnerf_method'
