@@ -6,9 +6,11 @@ An unofficial pytorch implementation of
 This work is based on [multinerf](https://github.com/google-research/multinerf), so features in refnerf,rawnerf,mipnerf360 are also available.
 
 ## News
-- (6.22) Add extracting mesh through tsdf; add [gradient scaling](https://gradient-scaling.github.io/) for near plane floaters.
-- (5.26) Implement the latest version of ZipNeRF [https://arxiv.org/abs/2304.06706](https://arxiv.org/abs/2304.06706).
-- (5.22) Add extracting mesh; add logging,checkpointing system
+- (2024.2.2) Add support for nerfstudio, credits to [Ling Jing](https://github.com/Jing1Ling).
+- (2024.12.8) Add support for Intel's DPC++ backend, credits to [Zong Wei](https://github.com/zongwave).
+- (2023.6.22) Add extracting mesh through tsdf; add [gradient scaling](https://gradient-scaling.github.io/) for near plane floaters.
+- (2023.5.26) Implement the latest version of ZipNeRF [https://arxiv.org/abs/2304.06706](https://arxiv.org/abs/2304.06706).
+- (2023.5.22) Add extracting mesh; add logging,checkpointing system
 
 ## Results
 New results(5.27): [Pretrained weights](https://drive.google.com/drive/folders/1W1jFa519m7Ye9Pcz5N_30TMPM-7KTTBc?usp=sharing)
