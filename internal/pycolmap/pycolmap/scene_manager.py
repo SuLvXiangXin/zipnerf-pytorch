@@ -119,7 +119,7 @@ class SceneManager:
                 data = line.split()
                 camera_id = int(data[0])
                 self.cameras[camera_id] = Camera(
-                    data[1], int(data[2]), int(data[3]), map(float, data[4:]))
+                    data[1], int(data[2]), int(data[3]), list(map(float, data[4:])))
                 self.last_camera_id = max(self.last_camera_id, camera_id)
 
     #---------------------------------------------------------------------------
@@ -195,11 +195,11 @@ class SceneManager:
                 if is_camera_description_line:
                     image_id = int(data[0])
                     image = Image(data[-1], int(data[-2]),
-                                  Quaternion(np.array(map(float, data[1:5]))),
-                                  np.array(map(float, data[5:8])))
+                                  Quaternion(np.array(list(map(float, data[1:5])))),
+                                  np.array(list(map(float, data[5:8]))))
                 else:
                     image.points2D = np.array(
-                        [map(float, data[::3]), map(float, data[1::3])]).T
+                        [list(map(float, data[::3])), list(map(float, data[1::3]))]).T
                     image.point3D_ids = np.array(map(np.uint64, data[2::3]))
 
                     # automatically remove points without an associated 3D point
@@ -272,13 +272,13 @@ class SceneManager:
 
                 self.point3D_ids.append(point3D_id)
                 self.point3D_id_to_point3D_idx[point3D_id] = len(self.points3D)
-                self.points3D.append(map(np.float64, data[1:4]))
-                self.point3D_colors.append(map(np.uint8, data[4:7]))
+                self.points3D.append(list(map(np.float64, data[1:4])))
+                self.point3D_colors.append(list(map(np.uint8, data[4:7])))
                 self.point3D_errors.append(np.float64(data[7]))
 
                 # load (image id, point2D idx) pairs
                 self.point3D_id_to_images[point3D_id] = \
-                    np.array(map(np.uint32, data[8:])).reshape(-1, 2)
+                    np.array(list(map(np.uint32, data[8:]))).reshape(-1, 2)
 
         self.points3D = np.array(self.points3D)
         self.point3D_ids = np.array(self.point3D_ids)
