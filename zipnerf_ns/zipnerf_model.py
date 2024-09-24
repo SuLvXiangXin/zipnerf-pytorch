@@ -8,6 +8,7 @@ from torchmetrics.functional import structural_similarity_index_measure
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.model_components.scene_colliders import NearFarCollider
+from nerfstudio.model_components.renderers import RGBRenderer
 from nerfstudio.engine.callbacks import (
     TrainingCallback,
     TrainingCallbackAttributes,
@@ -35,6 +36,8 @@ class ZipNerfModelConfig(ModelConfig):
     """random number generator (or None for deterministic output)."""
     zero_glo: bool = False
     """if True, when using GLO pass in vector of zeros."""
+    background_color: Literal["random", "black", "white"] = "white"
+    """Whether to randomize the background color."""
     _target: Type = field(default_factory=lambda: ZipNerfModel)
 
 class ZipNerfModel(Model):
@@ -60,6 +63,9 @@ class ZipNerfModel(Model):
         
         self.collider = NearFarCollider(near_plane=self.zipnerf.config.near, far_plane=self.zipnerf.config.far)
         self.step = 0
+
+        # Renderer
+        self.renderer_rgb = RGBRenderer(background_color=self.config.background_color)
 
         # Metrics
         self.psnr = PeakSignalNoiseRatio(data_range=1.0)
@@ -102,8 +108,8 @@ class ZipNerfModel(Model):
 
         # showed by viewer
         outputs['rgb']=renderings[2]['rgb']
-        outputs['depth']=renderings[2]['depth']
-        outputs['acc']=renderings[2]['acc']
+        outputs['depth']=renderings[2]['depth'].unsqueeze(-1)
+        outputs['accumulation']=renderings[2]['acc']
         if self.config.compute_extras:
             outputs['distance_mean']=renderings[2]['distance_mean']
             outputs['distance_median']=renderings[2]['distance_median']
@@ -195,8 +201,8 @@ class ZipNerfModel(Model):
 
         predicted_rgb = outputs["rgb"]
         # print('min,max:',predicted_rgb.min(),predicted_rgb.max())
-        acc = colormaps.apply_colormap(outputs["acc"])
-        depth = colormaps.apply_depth_colormap(outputs["depth"], accumulation=outputs["acc"])
+        acc = colormaps.apply_colormap(outputs["accumulation"])
+        depth = colormaps.apply_depth_colormap(outputs["depth"], accumulation=outputs["accumulation"])
 
         combined_rgb = torch.cat([gt_rgb, predicted_rgb], dim=1)
         combined_acc = torch.cat([acc], dim=1)
