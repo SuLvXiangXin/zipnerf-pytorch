@@ -66,7 +66,10 @@ def contract_mean_std(x, std):
     mask = x_mag_sq <= 1
     z = torch.where(mask, x, ((2 * torch.sqrt(x_mag_sq) - 1) / x_mag_sq) * x)
     # det_13 = ((1 / x_mag_sq) * ((2 / x_mag_sqrt - 1 / x_mag_sq) ** 2)) ** (1 / 3)
-    det_13 = (torch.pow(2 * x_mag_sqrt - 1, 1/3) / x_mag_sqrt) ** 2
+
+    # preventing (2 * torch.sqrt(x_mag_sq) - 1) minus 0, and causing the instability. eps=1 align to the original paper 
+    x_mag_sqrt_shred = torch.where(x_mag_sqrt > 1, x_mag_sqrt, torch.ones_like(x_mag_sqrt))
+    det_13 = (torch.pow(2 * x_mag_sqrt_shred - 1, 1/3) / x_mag_sqrt_shred) ** 2
 
     std = torch.where(mask[..., 0], std, det_13[..., 0] * std)
     return z, std
