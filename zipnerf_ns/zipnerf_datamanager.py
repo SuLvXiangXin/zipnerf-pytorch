@@ -70,3 +70,12 @@ class ZipNerfDataManager(VanillaDataManager):
         ray_indices = batch["indices"]
         ray_bundle = self.eval_ray_generator(ray_indices)
         return ray_bundle, batch
+    
+    def to(self, device: Union[torch.device, str]) -> "ZipNerfDataManager":
+        """Moves relevant data to specified device."""
+        self.device = device
+        if hasattr(self, 'train_ray_generator'):
+            self.train_ray_generator.to(device)
+        if hasattr(self, 'eval_ray_generator'):
+            self.eval_ray_generator.to(device)
+        return self
